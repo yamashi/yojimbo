@@ -6,7 +6,6 @@ language: cpp
 
 compiler:
   - clang
-  - gcc
 
 install:
   - wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha10/premake-5.0.0-alpha10-linux.tar.gz -O /tmp/premake5.tar.gz
@@ -31,12 +30,6 @@ install:
   - popd
   - sudo ldconfig
   
-script: 
-  - ./premake5 gmake
-  - make clean && make all config=debug_x64 && ./bin/test
-  - make clean && make all config=release_x64 && ./bin/test
-  - make clean && make all config=secure_x64 && ./bin/test
-
 env:
   global:
    # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
