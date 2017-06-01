@@ -1,25 +1,7 @@
 /*
-    Yojimbo Client/Server Network Protocol Library.
+    Yojimbo Network Library.
     
-    Copyright © 2016, The Network Protocol Company, Inc.
-
-    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-        1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-        2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer 
-           in the documentation and/or other materials provided with the distribution.
-
-        3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived 
-           from this software without specific prior written permission.
-
-    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-    WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
-    USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    Copyright © 2016 - 2017, The Network Protocol Company, Inc.
 */
 
 #ifndef YOJIMBO_STREAM_H
@@ -28,6 +10,7 @@
 #include "yojimbo_config.h"
 #include "yojimbo_bitpack.h"
 #include "yojimbo_allocator.h"
+#include "yojimbo_platform.h"
 #ifndef NDEBUG
 #include <stdio.h>
 #endif // #ifndef NDEBUG
@@ -50,7 +33,7 @@ namespace yojimbo
             @param allocator The allocator to use for stream allocations. This lets you dynamically allocate memory as you read and write packets.
          */
 
-        explicit BaseStream( Allocator & allocator ) : m_allocator( &allocator ), m_context( NULL ), m_userContext( NULL ) {}
+        explicit BaseStream( Allocator & allocator ) : m_allocator( &allocator ), m_context( NULL ) {}
 
         /**
             Set a context on the stream.
@@ -84,31 +67,6 @@ namespace yojimbo
         }
 
         /**
-            Set a user context on the stream.
-
-            This is designed for users of the library to be able to set their own context on the stream, without interfering with the context used for connection packets.
-
-            @see Client::SetUserContext
-            @see Server::SetUserContext
-         */
-
-        void SetUserContext( void * context )
-        {
-            m_userContext = context;
-        }
-
-        /**
-            Get the user context pointer set on the stream.
-
-            @returns The user context pointer. May be NULL.
-         */
-
-        void * GetUserContext() const
-        {
-            return m_userContext;
-        }
-
-        /**
             Get the allocator set on the stream.
 
             You can use this allocator to dynamically allocate memory while reading and writing packets.
@@ -125,7 +83,6 @@ namespace yojimbo
 
         Allocator * m_allocator;                            ///< The allocator passed into the constructor.
         void * m_context;                                   ///< The context pointer set on the stream. May be NULL.
-        void * m_userContext;                               ///< The user context pointer set on the stream. May be NULL.        
     };
 
     /**
@@ -157,7 +114,7 @@ namespace yojimbo
             @param allocator The allocator to use for stream allocations. This lets you dynamically allocate memory as you read and write packets.
          */
 
-		WriteStream( uint8_t * buffer, int bytes, Allocator & allocator = GetDefaultAllocator() ) : BaseStream( allocator ), m_writer( buffer, bytes ) {}
+        WriteStream( Allocator & allocator, uint8_t * buffer, int bytes ) : BaseStream( allocator ), m_writer( buffer, bytes ) {}
 
         /**
             Serialize an integer (write).
@@ -171,9 +128,9 @@ namespace yojimbo
 
         bool SerializeInteger( int32_t value, int32_t min, int32_t max )
         {
-            assert( min < max );
-            assert( value >= min );
-            assert( value <= max );
+            yojimbo_assert( min < max );
+            yojimbo_assert( value >= min );
+            yojimbo_assert( value <= max );
             const int bits = bits_required( min, max );
             uint32_t unsigned_value = value - min;
             m_writer.WriteBits( unsigned_value, bits );
@@ -191,8 +148,8 @@ namespace yojimbo
 
         bool SerializeBits( uint32_t value, int bits )
         {
-            assert( bits > 0 );
-            assert( bits <= 32 );
+            yojimbo_assert( bits > 0 );
+            yojimbo_assert( bits <= 32 );
             m_writer.WriteBits( value, bits );
             return true;
         }
@@ -208,8 +165,8 @@ namespace yojimbo
 
         bool SerializeBytes( const uint8_t * data, int bytes )
         {
-            assert( data );
-            assert( bytes >= 0 );
+            yojimbo_assert( data );
+            yojimbo_assert( bytes >= 0 );
             SerializeAlign();
             m_writer.WriteBytes( data, bytes );
             return true;
@@ -339,7 +296,7 @@ namespace yojimbo
             @param allocator The allocator to use for stream allocations. This lets you dynamically allocate memory as you read and write packets.
          */
 
-        ReadStream( const uint8_t * buffer, int bytes, Allocator & allocator = GetDefaultAllocator() ) : BaseStream( allocator ), m_reader( buffer, bytes ) {}
+        ReadStream( Allocator & allocator, const uint8_t * buffer, int bytes ) : BaseStream( allocator ), m_reader( buffer, bytes ) {}
 
         /**
             Serialize an integer (read).
@@ -353,7 +310,7 @@ namespace yojimbo
 
         bool SerializeInteger( int32_t & value, int32_t min, int32_t max )
         {
-            assert( min < max );
+            yojimbo_assert( min < max );
             const int bits = bits_required( min, max );
             if ( m_reader.WouldReadPastEnd( bits ) )
                 return false;
@@ -373,8 +330,8 @@ namespace yojimbo
 
         bool SerializeBits( uint32_t & value, int bits )
         {
-            assert( bits > 0 );
-            assert( bits <= 32 );
+            yojimbo_assert( bits > 0 );
+            yojimbo_assert( bits <= 32 );
             if ( m_reader.WouldReadPastEnd( bits ) )
                 return false;
             uint32_t read_value = m_reader.ReadBits( bits );
@@ -446,7 +403,7 @@ namespace yojimbo
                 return false;
             if ( value != SerializeCheckValue )
             {
-                debug_printf( "serialize check failed: expected %x, got %x\n", SerializeCheckValue, value );
+                yojimbo_printf( YOJIMBO_LOG_LEVEL_DEBUG, "serialize check failed: expected %x, got %x\n", SerializeCheckValue, value );
             }
             return value == SerializeCheckValue;
 #else // #if YOJIMBO_SERIALIZE_CHECKS
@@ -478,7 +435,7 @@ namespace yojimbo
 
     private:
 
-        BitReader m_reader;									///< The bit reader used for all bitpacked read operations.
+        BitReader m_reader;                                 ///< The bit reader used for all bitpacked read operations.
     };
 
     /**
@@ -507,7 +464,7 @@ namespace yojimbo
             @param allocator The allocator to use for stream allocations. This lets you dynamically allocate memory as you read and write packets.
          */
 
-        explicit MeasureStream( Allocator & allocator = GetDefaultAllocator() ) : BaseStream( allocator ), m_bitsWritten(0) {}
+        explicit MeasureStream( Allocator & allocator ) : BaseStream( allocator ), m_bitsWritten(0) {}
 
         /**
             Serialize an integer (measure).
@@ -522,9 +479,9 @@ namespace yojimbo
         bool SerializeInteger( int32_t value, int32_t min, int32_t max )
         {   
             (void) value;
-            assert( min < max );
-            assert( value >= min );
-            assert( value <= max );
+            yojimbo_assert( min < max );
+            yojimbo_assert( value >= min );
+            yojimbo_assert( value <= max );
             const int bits = bits_required( min, max );
             m_bitsWritten += bits;
             return true;
@@ -542,8 +499,8 @@ namespace yojimbo
         bool SerializeBits( uint32_t value, int bits )
         {
             (void) value;
-            assert( bits > 0 );
-            assert( bits <= 32 );
+            yojimbo_assert( bits > 0 );
+            yojimbo_assert( bits <= 32 );
             m_bitsWritten += bits;
             return true;
         }

@@ -1,30 +1,13 @@
 /*
-    Yojimbo Client/Server Network Protocol Library.
-
-    Copyright © 2016, The Network Protocol Company, Inc.
-
-    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-        1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-        2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer 
-           in the documentation and/or other materials provided with the distribution.
-
-        3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived 
-           from this software without specific prior written permission.
-
-    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-    WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
-    USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    Yojimbo Network Library.
+    
+    Copyright © 2016 - 2017, The Network Protocol Company, Inc.
 */
 
 #ifndef YOJIMBO_ALLOCATOR_H
 #define YOJIMBO_ALLOCATOR_H
 
+#include "yojimbo_platform.h"
 #include <stdint.h>
 #include <new>
 #if YOJIMBO_DEBUG_MEMORY_LEAKS
@@ -69,11 +52,25 @@ namespace yojimbo
 
     /// Allocator error level.
 
-    enum AllocatorError
+    enum AllocatorErrorLevel
     {
-        ALLOCATOR_ERROR_NONE = 0,                                                   ///< No error. All is well.
-        ALLOCATOR_ERROR_FAILED_TO_ALLOCATE                                          ///<  Tried to make an allocation but failed because the allocator was out of memory.
+        ALLOCATOR_ERROR_NONE = 0,                               ///< No error. All is well.
+        ALLOCATOR_ERROR_OUT_OF_MEMORY                           ///< The allocator is out of memory!
     };
+
+    /// Helper function to convert an allocator error to a user friendly string.
+
+    inline const char * GetAllocatorErrorString( AllocatorErrorLevel error )
+    {
+        switch ( error )
+        {
+            case ALLOCATOR_ERROR_NONE:                  return "none";
+            case ALLOCATOR_ERROR_OUT_OF_MEMORY:         return "out of memory";
+            default:
+                yojimbo_assert( false );
+                return "(unknown)";
+        }
+    }
 
 #if YOJIMBO_DEBUG_MEMORY_LEAKS
 
@@ -134,7 +131,7 @@ namespace yojimbo
             @returns A block of memory of the requested size, or NULL if the allocation could not be performed. If NULL is returned, the error level is set to ALLOCATION_ERROR_FAILED_TO_ALLOCATE.
 
             @see Allocator::Free
-            @see Allocator::GetError
+            @see Allocator::GetErrorLevel
          */
 
         virtual void * Allocate( size_t size, const char * file, int line ) = 0;
@@ -149,7 +146,7 @@ namespace yojimbo
             @param line The line number in the source code file that is performing the free.
 
             @see Allocator::Allocate
-            @see Allocator::GetError
+            @see Allocator::GetErrorLevel
          */
 
         virtual void Free( void * p, const char * file, int line ) = 0;
@@ -162,13 +159,13 @@ namespace yojimbo
             @returns The allocator error level.
          */
 
-        AllocatorError GetError() const { return m_error; }
+        AllocatorErrorLevel GetErrorLevel() const { return m_errorLevel; }
 
         /**
             Clear the allocator error level back to default.
          */
 
-        void ClearError() { m_error = ALLOCATOR_ERROR_NONE; }
+        void ClearError() { m_errorLevel = ALLOCATOR_ERROR_NONE; }
 
     protected:
 
@@ -180,7 +177,7 @@ namespace yojimbo
             @param error The allocator error level to set.
          */
 
-        void SetError( AllocatorError error ) { m_error = error; }
+        void SetErrorLevel( AllocatorErrorLevel errorLevel );
 
         /**
             Call this function to track an allocation made by your derived allocator class.
@@ -207,7 +204,7 @@ namespace yojimbo
 
         void TrackFree( void * p, const char * file, int line );
 
-        AllocatorError m_error;                                                 ///< The allocator error level.
+        AllocatorErrorLevel m_errorLevel;                                       ///< The allocator error level.
 
 #if YOJIMBO_DEBUG_MEMORY_LEAKS
         std::map<void*,AllocatorEntry> m_alloc_map;                             ///< Debug only data structure used to find and report memory leaks.

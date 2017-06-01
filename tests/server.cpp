@@ -22,13 +22,13 @@
     USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#define SERVER 1
-#define LOGGING 1
+#include "yojimbo.h"
+#include <signal.h>
+#include <time.h>
 
 #include "shared.h"
-#include <signal.h>
 
-#if !YOJIMBO_SECURE_MODE
+using namespace yojimbo;
 
 static volatile int quit = 0;
 
@@ -39,31 +39,18 @@ void interrupt_handler( int /*dummy*/ )
 
 int ServerMain()
 {
-    printf( "started server on port %d\n", ServerPort );
-
-    Address serverBindAddress( "0.0.0.0", ServerPort );
-
-    Address serverPublicAddress( "127.0.0.1", ServerPort );
+    printf( "started server on port %d (insecure)\n", ServerPort );
 
     double time = 100.0;
 
-    NetworkTransport serverTransport( GetDefaultAllocator(), serverBindAddress, ProtocolId, time );
+    ClientServerConfig config;
 
-    if ( serverTransport.GetError() != SOCKET_ERROR_NONE )
-    {
-        printf( "error: failed to initialize server socket\n" );
-        return 1;
-    }
-    
-    GameServer server( GetDefaultAllocator(), serverTransport, ClientServerConfig(), time );
+    uint8_t privateKey[KeyBytes];
+    memset( privateKey, 0, KeyBytes );
 
-    server.SetServerAddress( serverPublicAddress );
+    Server server( GetDefaultAllocator(), privateKey, Address( "127.0.0.1", ServerPort ), config, adapter, time );
 
-    server.SetFlags( SERVER_FLAG_ALLOW_INSECURE_CONNECT );
-    
-    serverTransport.SetFlags( TRANSPORT_FLAG_INSECURE_MODE );
-
-    server.Start();
+    server.Start( MaxClients );
 
     const double deltaTime = 0.1;
 
@@ -73,24 +60,17 @@ int ServerMain()
     {
         server.SendPackets();
 
-        serverTransport.WritePackets();
-
-        serverTransport.ReadPackets();
-
         server.ReceivePackets();
-
-        server.CheckForTimeOut();
 
         time += deltaTime;
 
         server.AdvanceTime( time );
 
-        serverTransport.AdvanceTime( time );
+        if ( !server.IsRunning() )
+            break;
 
-        platform_sleep( deltaTime );
+        yojimbo_sleep( deltaTime );
     }
-
-    printf( "\nserver stopped\n" );
 
     server.Stop();
 
@@ -107,6 +87,8 @@ int main()
         return 1;
     }
 
+    yojimbo_log_level( YOJIMBO_LOG_LEVEL_INFO );
+
     srand( (unsigned int) time( NULL ) );
 
     int result = ServerMain();
@@ -117,15 +99,3 @@ int main()
 
     return result;
 }
-
-#else // #if !YOJIMBO_SECURE_MODE
-
-int main( int argc, char * argv[] )
-{
-    (void)argc;
-    (void)argv;
-    printf( "\nYojimbo is in secure mode. Insecure server is disabled. See YOJIMBO_SECURE_MODE\n\n" );
-    return 0;
-}
-
-#endif // #if !YOJIMBO_SECURE_MODE

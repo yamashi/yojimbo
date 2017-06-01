@@ -1,25 +1,7 @@
 /*
-    Yojimbo Client/Server Network Protocol Library.
+    Yojimbo Network Library.
     
-    Copyright © 2016, The Network Protocol Company, Inc.
-
-    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-        1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-        2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer 
-           in the documentation and/or other materials provided with the distribution.
-
-        3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived 
-           from this software without specific prior written permission.
-
-    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-    WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
-    USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    Copyright © 2016 - 2017, The Network Protocol Company, Inc.
 */
 
 #ifndef YOJIMBO_ADDRESS_H
@@ -28,15 +10,10 @@
 #include "yojimbo_config.h"
 
 #include <stdint.h>
-#include <assert.h>
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-
-struct addrinfo;
-struct sockaddr_in6;
-struct sockaddr_storage;
 
 /** @file */
 
@@ -77,7 +54,7 @@ namespace yojimbo
 
         union
         {
-            uint32_t ipv4;                                                  ///< IPv4 address data. Valid if type is ADDRESS_IPV4.
+            uint8_t ipv4[4];                                                ///< IPv4 address data. Valid if type is ADDRESS_IPV4.
             uint16_t ipv6[8];                                               ///< IPv6 address data. Valid if type is ADDRESS_IPV6.
         } m_address;
 
@@ -114,13 +91,11 @@ namespace yojimbo
         /**
             Create an IPv4 address.
 
-            IMPORTANT: Pass in address and port in local byte order. The address class handles the conversion to network order for you.
-
-            @param address The IPv4 address (local byte order).
-            @param port The IPv4 port (local byte order).
+            @param address Array of four address fields for the IPv4 address.
+            @param port The port number (local byte order).
          */
 
-        explicit Address( uint32_t address, int16_t port = 0 );
+        Address( const uint8_t address[], uint16_t port = 0 );
 
         /**
             Create an IPv6 address.
@@ -135,12 +110,10 @@ namespace yojimbo
             @param f Sixth field of the IPv6 address (local byte order).
             @param g Seventh field of the IPv6 address (local byte order).
             @param h Eighth field of the IPv6 address (local byte order).
-            @param port The IPv6 port (local byte order).
+            @param port The port number (local byte order).
          */
 
-        explicit Address( uint16_t a, uint16_t b, uint16_t c, uint16_t d,
-                          uint16_t e, uint16_t f, uint16_t g, uint16_t h,
-                          uint16_t port = 0 );
+        Address( uint16_t a, uint16_t b, uint16_t c, uint16_t d, uint16_t e, uint16_t f, uint16_t g, uint16_t h, uint16_t port = 0 );
 
         /**
             Create an IPv6 address.
@@ -151,24 +124,7 @@ namespace yojimbo
             @param port The IPv6 port (local byte order).
          */
 
-        explicit Address( const uint16_t address[], uint16_t port = 0 );
-
-        /**
-            Create an address from a sockaddr_storage.
-
-            This is a convenience function for working with BSD socket APIs.
-
-            Depending on the information in sockaddr_storage ss_family, the address will become ADDRESS_TYPE_IPV4 or ADDRESS_TYPE_IPV6.
-
-            If something goes wrong in the conversion the address type is set to ADDRESS_TYPE_NONE and Address::IsValid returns false.
-
-            @param addr The sockaddr_storage data to convert to an address.
-
-            @see Address::IsValid
-            @see Address::GetType
-         */
-
-        explicit Address( const sockaddr_storage * addr );
+        Address( const uint16_t address[], uint16_t port = 0 );
 
         /**
             Parse a string to an address.
@@ -222,15 +178,15 @@ namespace yojimbo
         /**
             Get the IPv4 address data.
 
-            @returns The IPv4 address (local byte order).
+            @returns The IPv4 address as an array of bytes.
          */
 
-        uint32_t GetAddress4() const;
+        const uint8_t * GetAddress4() const;
 
         /**
             Get the IPv6 address data.
 
-            @returns the IPv6 address data (local byte order).
+            @returns the IPv6 address data as an array of uint16_t (local byte order).
          */
 
         const uint16_t * GetAddress6() const;

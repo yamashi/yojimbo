@@ -1,25 +1,7 @@
 /*
-    Yojimbo Client/Server Network Protocol Library.
+    Yojimbo Network Library.
     
-    Copyright © 2016, The Network Protocol Company, Inc.
-
-    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-        1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-        2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer 
-           in the documentation and/or other materials provided with the distribution.
-
-        3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived 
-           from this software without specific prior written permission.
-
-    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-    WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
-    USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    Copyright © 2016 - 2017, The Network Protocol Company, Inc.
 */
 
 #ifndef YOJIMBO_MATCHER_H
@@ -27,7 +9,6 @@
 
 #include "yojimbo_config.h"
 #include "yojimbo_allocator.h"
-#include "yojimbo_tokens.h"
 
 /** @file */
 
@@ -43,38 +24,8 @@ namespace yojimbo
     {
         MATCH_IDLE,                                                         ///< The matcher is idle.
         MATCH_BUSY,                                                         ///< The matcher is busy requesting a match.
-        MATCH_READY,                                                        ///< The matcher is finished requesting a match. The match response is ready to read with Matcher::GetMatchResponse.
+        MATCH_READY,                                                        ///< The matcher is finished requesting a match. The match response is ready to read with Matcher::GetConnectToken.
         MATCH_FAILED                                                        ///< The matcher failed to find a match.
-    };
-
-    /** 
-        Response sent back from the matcher web service when the client requests a match.
-
-        IMPORTANT: This response is transmitted over HTTPS because it contains encryption keys for packets sent between the client and server.
-
-        @see Client::Connect
-        @see ConnectToken
-     */
-
-    struct MatchResponse
-    {
-        MatchResponse()
-        {
-            numServerAddresses = 0;
-            memset( connectTokenData, 0, sizeof( connectTokenData ) );
-            memset( connectTokenNonce, 0, sizeof( connectTokenNonce ) );
-            memset( clientToServerKey, 0, sizeof( clientToServerKey ) );
-            memset( serverToClientKey, 0, sizeof( serverToClientKey ) );
-            connectTokenExpireTimestamp = 0;
-        }
-
-        int numServerAddresses;                                             ///< The number of server addresses to connect to in [1,MaxServersPerConnect].
-        Address serverAddresses[MaxServersPerConnect];                      ///< The array of server addresses that the client can connect to, in order of first to last to try.
-        uint8_t connectTokenData[ConnectTokenBytes];                        ///< The encrypted connect token data.
-        uint8_t connectTokenNonce[NonceBytes];                              ///< The nonce the connect token was encrypted with.
-        uint8_t clientToServerKey[KeyBytes];                                ///< The key for client to server encrypted packets.
-        uint8_t serverToClientKey[KeyBytes];                                ///< The key for server to client encrypted packets.
-        uint64_t connectTokenExpireTimestamp;                               ///< The timestamp at which this connect token expires.
     };
 
     /**
@@ -124,7 +75,7 @@ namespace yojimbo
             @param clientId A unique client identifier that identifies each client to your back end services. If you don't have this yet, just roll a random 64 bit number.
 
             @see Matcher::GetMatchStatus
-            @see Matcher::GetMatchResponse
+            @see Matcher::GetConnectToken
          */
 
         void RequestMatch( uint64_t protocolId, uint64_t clientId );
@@ -142,42 +93,29 @@ namespace yojimbo
         MatchStatus GetMatchStatus();
 
         /**
-            Get match response data.
+            Get connect token.
 
             This can only be called if the match status is MATCH_READY.
 
-            @param matchResponse The match response data to fill [out].
+            @param connectToken The connect token data to fill [out].
 
             @see Matcher::RequestMatch
             @see Matcher::GetMatchStatus
          */
 
-        void GetMatchResponse( MatchResponse & matchResponse );
-
-    protected:
-
-        /**
-            Helper function to parse the match response JSON into the MatchResponse struct.
-
-            @param json The JSON match response string to parse.
-            @param matchResponse The match response structure to fill [out].
-
-            @returns True if the match response JSON was successfully parsed, false otherwise.
-         */
-
-        bool ParseMatchResponse( const char * json, MatchResponse & matchResponse );
+        void GetConnectToken( uint8_t * connectToken );
 
     private:
 
-        Allocator * m_allocator;                                ///< The allocator passed into the constructor.
+        Matcher( const Matcher & matcher );
 
+        const Matcher & operator = ( const Matcher & other );
+
+        Allocator * m_allocator;                                ///< The allocator passed into the constructor.
         bool m_initialized;                                     ///< True if the matcher was successfully initialized. See Matcher::Initialize.
-        
-		MatchStatus m_matchStatus;                              ///< The current match status.
-        
-		MatchResponse m_matchResponse;                          ///< The match response status from the last call to Matcher::RequestMatch if the match status is MATCH_READY.
-        
-		struct MatcherInternal * m_internal;                    ///< Internal match data is contained in this structure here so we don't have to spill details of mbedtls library outside yojimbo_matcher.cpp
+        MatchStatus m_matchStatus;                              ///< The current match status.
+        struct MatcherInternal * m_internal;                    ///< Internals are in here to avoid spilling details of mbedtls library outside of yojimbo_matcher.cpp
+        uint8_t m_connectToken[ConnectTokenBytes];              ///< The connect token data from the last call to Matcher::RequestMatch once the match status is MATCH_READY.
     };
 }
 

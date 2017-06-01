@@ -13,6 +13,8 @@ RUN wget https://github.com/jedisct1/libsodium/releases/download/1.0.10/libsodiu
     ldconfig
 
 RUN go get github.com/gorilla/mux
+RUN go get github.com/gorilla/context
+RUN go get github.com/networkprotocol/netcode.io/go/netcode
 
 RUN cd /go/bin && \
     openssl genrsa -out server.key 4096 && \

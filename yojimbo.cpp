@@ -1,30 +1,11 @@
 /*
-    Yojimbo Client/Server Network Protocol Library.
+    Yojimbo Network Library.
     
-    Copyright © 2016, The Network Protocol Company, Inc.
-
-    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-        1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-        2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer 
-           in the documentation and/or other materials provided with the distribution.
-
-        3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived 
-           from this software without specific prior written permission.
-
-    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-    WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
-    USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    Copyright © 2016 - 2017, The Network Protocol Company, Inc.
 */
 
 #include "yojimbo_config.h"
 #include "yojimbo.h"
-#include <assert.h>
 
 #ifdef _MSC_VER
 #define SODIUM_STATIC
@@ -42,22 +23,27 @@ namespace yojimbo
 {
     Allocator & GetDefaultAllocator()
     {
-        assert( g_defaultAllocator );
+        yojimbo_assert( g_defaultAllocator );
         return *g_defaultAllocator;
     }
 }
+
+extern "C" int netcode_init();
+extern "C" int reliable_init();
+extern "C" void netcode_term();
+extern "C" void reliable_term();
+
+#define NETCODE_OK 1
+#define RELIABLE_OK 1
 
 bool InitializeYojimbo()
 {
     g_defaultAllocator = new yojimbo::DefaultAllocator();
 
-    assert( yojimbo::NonceBytes == crypto_aead_chacha20poly1305_NPUBBYTES );
-    assert( yojimbo::KeyBytes == crypto_aead_chacha20poly1305_KEYBYTES );
-    assert( yojimbo::MacBytes == crypto_aead_chacha20poly1305_ABYTES );
-    assert( yojimbo::KeyBytes == crypto_secretbox_KEYBYTES );
-    assert( yojimbo::MacBytes == crypto_secretbox_MACBYTES );
+    if ( netcode_init() != NETCODE_OK )
+        return false;
 
-    if ( !yojimbo::InitializeNetwork() )
+    if ( reliable_init() != RELIABLE_OK )
         return false;
 
     return sodium_init() != -1;
@@ -65,9 +51,11 @@ bool InitializeYojimbo()
 
 void ShutdownYojimbo()
 {
-    yojimbo::ShutdownNetwork();
+    reliable_term();
 
-    assert( g_defaultAllocator );
+    netcode_term();
+
+    yojimbo_assert( g_defaultAllocator );
     delete g_defaultAllocator;
     g_defaultAllocator = NULL;
 }

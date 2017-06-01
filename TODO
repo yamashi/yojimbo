@@ -1,36 +1,108 @@
 DONE    
 
+<<<<<<< HEAD
+=======
+    Support for different client/server implementations
+
+    Client/server implementation built on top of reliable.io and netcode.io
+
+    Packet fragmentation and re-assembly support from reliable.io
+
+    Better implementation of connect tokens via netcode.io
+
+    Port across secure_server to new API.
+
+    Tracked down (rare) message leak in receive queue overflow.
+
+    Extend soak test to have unreliable, unordered channel, and to make sure it exercises packet fragmentation and reassembly codepath.
+
+    Extend yojimbo to have detailed logging support, eg. log levels (none, error, info, debug)
+
+    Fixed compilation on windows.
+
+    Extend yojimbo so it can have an overridden printf function
+
+    Extend netcode.io so it can have an overridden printf function
+
+    Extend reliable.io so it can have an overriden printf function
+
+    Extend yojimbo so it can have an overridden assert function
+
+    Important git submodule tips:
+
+        1. On clone, you must call "git submodule update --recursive" to get the netcode.io and reliable.io submodules. They will initially be empty.
+
+        2. To update the submodules to their respective head revisions: "git submodule update --remote --merge"
+
+        3. Editing the submodules in place doesn't seem to work, unless you created that submodule in your local repository (MacOS in my case).
+
+    Removed secure build, no longer required (unified secure/insecure connect codepaths).
+
+    Extend netcode.io so it can have an overridden assert function
+
+    Extend reliable.io so it can have an overriden assert function
+
+    Update matcher.go so it uses netcode.io golang implementation to generate connect token data
+
+    Fixed bug in reliable.io introduced by renaming 'sequence' to 'ack_sequence' to fix Visual C++ complaining about it.
+
+    Bring across the C++ matcher implementation again, and upgrade it to use the new connect tokens from netcode.io
+
+    Port across secure_client to new API.
+
+    Verified new matcher works with secure client and server.
+>>>>>>> master
 
 TODO
 
-    =========================================
+    ------------
 
-    Where to host the generated documentation?
+    Extend netcode.io so the user can set a custom allocator to use for client.
 
-    How to build it automatically and upload it. Is this possible via travis? Wouldn't this create a security issue? (I can't exactly put KEYS in the source code...)
+    Extend netcode.io so the user can set a custom allocator to use for server.
 
-    How do other projects usually do this?
+    Extend reliable.io so the user can set a custom allocator to use for endpoints.
 
-    =========================================
+    Integrate custom allocators for netcode.io and reliable.io with client and server allocators in yojimbo.
 
-    What's the most important documentation I can write next? Basic usage documentation. 
+    ------------
 
-    This could take some time. Think through it and focus on answering questions on issues for libyojimbo so I can determine what documentation is necessary, and what topics should be covered.
+    Add define to replace all allocators with default (so everything goes through malloc).
 
-    =========================================
+    Setup a valgrind to check for memory leaks and trashes inside docker with the soak test.
 
-    Packet fragmentation and reassembly.
+    ------------
 
-    Definitely needed for large snapshot blocks.
+    Implement packet loss, latency, jitter estimates from reliable.io
 
-    Default to maximum packet size of 8k, so up to 7 ~1200 MTU packets
+    Integrate QoS settings above with yojimbo client/server and connection.
 
-    Only allow fragmented packets if they are encrypted in secure mode. Unencrypted ones will not be accepted.   
+    Implement congestion adoidance in reliable.io (if reasonably possible given that user is in control of packet sizes...)
 
-    =========================================
+    ------------
 
-    Implement matcher and extend it to work with redis in real world examples.
+    Add ability to back-channel connect client and server (at the base client level).
 
-    eg. Be a functional matcher that will accept registration information from servers, and match clients to connect to servers.
+    This should allow the ability to pump in client -> server packets for a connected slot, and server -> client packets.
 
-    =========================================
+    This will enable local loopback packet exchange between a client and server, and should work to a standard interface that is the same across all client/server implementations.
+
+    eg. this should be implemented in the base client / base server.
+
+    ------------
+
+    Rethink and fix up configuration of channels. It still feels too complex.
+
+    ------------
+
+    Pass over all // todo and fix
+
+    ------------
+
+    Pass over doxygen documentation again.
+
+    ------------
+
+    *** Feature complete for 0.6 release ***
+
+    ------------

@@ -1,29 +1,11 @@
 /*
-    Yojimbo Client/Server Network Protocol Library.
+    Yojimbo Network Library.
     
-    Copyright © 2016, The Network Protocol Company, Inc.
-
-    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-        1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-        2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer 
-           in the documentation and/or other materials provided with the distribution.
-
-        3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived 
-           from this software without specific prior written permission.
-
-    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-    WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
-    USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    Copyright © 2016 - 2017, The Network Protocol Company, Inc.
 */
 
 #include "yojimbo_config.h"
-#include "yojimbo_address.h"
+#include "yojimbo_platform.h"
 
 #if YOJIMBO_PLATFORM == YOJIMBO_PLATFORM_WINDOWS
 
@@ -38,18 +20,12 @@
     #undef SetPort
     #endif // #ifdef SetPort
 
-    #if YOJIMBO_SOCKETS
-    #include <iphlpapi.h>
-    #pragma comment( lib, "IPHLPAPI.lib" )
-    #endif // #if YOJIMBO_SOCKETS
-
 #elif YOJIMBO_PLATFORM == YOJIMBO_PLATFORM_MAC || YOJIMBO_PLATFORM == YOJIMBO_PLATFORM_UNIX
 
     #include <netdb.h>
     #include <sys/types.h>
     #include <sys/socket.h>
     #include <netinet/in.h>
-    #include <ifaddrs.h>
     #include <net/if.h>
     #include <fcntl.h>
     #include <netdb.h>
@@ -66,6 +42,9 @@
 #include <memory.h>
 #include <string.h>
 
+#include "yojimbo_address.h"
+
+
 namespace yojimbo
 {
     Address::Address()
@@ -77,30 +56,32 @@ namespace yojimbo
         : m_type( ADDRESS_IPV4 )
     {
         
-        m_address.ipv4 = uint32_t(a) | (uint32_t(b)<<8) | (uint32_t(c)<<16) | (uint32_t(d)<<24);
+        m_address.ipv4[0] = a;
+        m_address.ipv4[1] = b;
+        m_address.ipv4[2] = c;
+        m_address.ipv4[3] = d;
         m_port = port;
     }
 
-    Address::Address( uint32_t address, int16_t port )
+    Address::Address( const uint8_t address[], uint16_t port )
         : m_type( ADDRESS_IPV4 )
     {
-        m_address.ipv4 = htonl( address );        // IMPORTANT: stored in network byte order. eg. big endian!
+        for ( int i = 0; i < 4; ++i )
+            m_address.ipv4[i] = address[i];
         m_port = port;
     }
 
-    Address::Address( uint16_t a, uint16_t b, uint16_t c, uint16_t d,
-                      uint16_t e, uint16_t f, uint16_t g, uint16_t h,
-                      uint16_t port )
+    Address::Address( uint16_t a, uint16_t b, uint16_t c, uint16_t d, uint16_t e, uint16_t f, uint16_t g, uint16_t h, uint16_t port )
         : m_type( ADDRESS_IPV6 )
     {
-        m_address.ipv6[0] = htons( a );
-        m_address.ipv6[1] = htons( b );
-        m_address.ipv6[2] = htons( c );
-        m_address.ipv6[3] = htons( d );
-        m_address.ipv6[4] = htons( e );
-        m_address.ipv6[5] = htons( f );
-        m_address.ipv6[6] = htons( g );
-        m_address.ipv6[7] = htons( h );
+        m_address.ipv6[0] = a;
+        m_address.ipv6[1] = b;
+        m_address.ipv6[2] = c;
+        m_address.ipv6[3] = d;
+        m_address.ipv6[4] = e;
+        m_address.ipv6[5] = f;
+        m_address.ipv6[6] = g;
+        m_address.ipv6[7] = h;
         m_port = port;
     }
 
@@ -108,33 +89,8 @@ namespace yojimbo
         : m_type( ADDRESS_IPV6 )
     {
         for ( int i = 0; i < 8; ++i )
-            m_address.ipv6[i] = htons( address[i] );
+            m_address.ipv6[i] = address[i];
         m_port = port;
-    }
-
-    Address::Address( const sockaddr_storage * addr )
-    {
-        assert( addr );
-
-        if ( addr->ss_family == AF_INET )
-        {
-            const sockaddr_in * addr_ipv4 = (const sockaddr_in*) addr;
-            m_type = ADDRESS_IPV4;
-            m_address.ipv4 = addr_ipv4->sin_addr.s_addr;
-            m_port = ntohs( addr_ipv4->sin_port );
-        }
-        else if ( addr->ss_family == AF_INET6 )
-        {
-            const sockaddr_in6 * addr_ipv6 = (const sockaddr_in6*) addr;
-            m_type = ADDRESS_IPV6;
-            memcpy( m_address.ipv6, &addr_ipv6->sin6_addr, 16 );
-            m_port = ntohs( addr_ipv6->sin6_port );
-        }
-        else
-        {
-            assert( false );
-            Clear();
-        }
     }
 
     Address::Address( const char * address )
@@ -154,7 +110,7 @@ namespace yojimbo
         // 1. if the first character is '[' then it's probably an ipv6 in form "[addr6]:portnum"
         // 2. otherwise try to parse as raw IPv6 address, parse using inet_pton
 
-        assert( address_in );
+        yojimbo_assert( address_in );
 
         char buffer[MaxAddressLength];
         char * address = buffer;
@@ -166,7 +122,7 @@ namespace yojimbo
         if ( address[0] == '[' )
         {
             const int base_index = addressLength - 1;
-            for ( int i = 0; i < 6; ++i )                                       // note: no need to search past 6 characters as ":65535" is longest port value
+            for ( int i = 0; i < 6; ++i )                 // note: no need to search past 6 characters as ":65535" is longest port value
             {
                 const int index = base_index - i;
                 if ( index < 3 )
@@ -182,7 +138,11 @@ namespace yojimbo
         struct in6_addr sockaddr6;
         if ( inet_pton( AF_INET6, address, &sockaddr6 ) == 1 )
         {
-            memcpy( m_address.ipv6, &sockaddr6, 16 );
+            int i;
+            for ( i = 0; i < 8; ++i )
+            {
+                m_address.ipv6[i] = ntohs( ( (uint16_t*) &sockaddr6 ) [i] );
+            }
             m_type = ADDRESS_IPV6;
             return;
         }
@@ -193,7 +153,7 @@ namespace yojimbo
 
         addressLength = (int) strlen( address );
         const int base_index = addressLength - 1;
-        for ( int i = 0; i < 6; ++i )                                           // note: no need to search past 6 characters as ":65535" is longest port value
+        for ( int i = 0; i < 6; ++i )
         {
             const int index = base_index - i;
             if ( index < 0 )
@@ -209,7 +169,10 @@ namespace yojimbo
         if ( inet_pton( AF_INET, address, &sockaddr4.sin_addr ) == 1 )
         {
             m_type = ADDRESS_IPV4;
-            m_address.ipv4 = sockaddr4.sin_addr.s_addr;
+            m_address.ipv4[3] = (uint8_t) ( ( sockaddr4.sin_addr.s_addr & 0xFF000000 ) >> 24 );
+            m_address.ipv4[2] = (uint8_t) ( ( sockaddr4.sin_addr.s_addr & 0x00FF0000 ) >> 16 );
+            m_address.ipv4[1] = (uint8_t) ( ( sockaddr4.sin_addr.s_addr & 0x0000FF00 ) >> 8  );
+            m_address.ipv4[0] = (uint8_t) ( ( sockaddr4.sin_addr.s_addr & 0x000000FF )       );
         }
         else
         {
@@ -225,15 +188,15 @@ namespace yojimbo
         m_port = 0;
     }
 
-    uint32_t Address::GetAddress4() const
+    const uint8_t * Address::GetAddress4() const
     {
-        assert( m_type == ADDRESS_IPV4 );
+        yojimbo_assert( m_type == ADDRESS_IPV4 );
         return m_address.ipv4;
     }
 
     const uint16_t * Address::GetAddress6() const
     {
-        assert( m_type == ADDRESS_IPV6 );
+        yojimbo_assert( m_type == ADDRESS_IPV6 );
         return m_address.ipv6;
     }
 
@@ -254,14 +217,14 @@ namespace yojimbo
 
     const char * Address::ToString( char buffer[], int bufferSize ) const
     {
-        assert( bufferSize >= MaxAddressLength );
+        yojimbo_assert( bufferSize >= MaxAddressLength );
 
         if ( m_type == ADDRESS_IPV4 )
         {
-            const uint8_t a =   m_address.ipv4 & 0xff;
-            const uint8_t b = ( m_address.ipv4 >> 8  ) & 0xff;
-            const uint8_t c = ( m_address.ipv4 >> 16 ) & 0xff;
-            const uint8_t d = ( m_address.ipv4 >> 24 ) & 0xff;
+            const uint8_t a = m_address.ipv4[0];
+            const uint8_t b = m_address.ipv4[1];
+            const uint8_t c = m_address.ipv4[2];
+            const uint8_t d = m_address.ipv4[3];
             if ( m_port != 0 )
                 snprintf( buffer, bufferSize, "%d.%d.%d.%d:%d", a, b, c, d, m_port );
             else
@@ -272,13 +235,19 @@ namespace yojimbo
         {
             if ( m_port == 0 )
             {
-                inet_ntop( AF_INET6, (void*) &m_address.ipv6, buffer, bufferSize );
+                uint16_t address6[8];
+                for ( int i = 0; i < 8; ++i )
+                    address6[i] = ntohs( ((uint16_t*) &m_address.ipv6)[i] );
+                inet_ntop( AF_INET6, address6, buffer, bufferSize );
                 return buffer;
             }
             else
             {
                 char addressString[INET6_ADDRSTRLEN];
-                inet_ntop( AF_INET6, (void*) &m_address.ipv6, addressString, INET6_ADDRSTRLEN );
+                uint16_t address6[8];
+                for ( int i = 0; i < 8; ++i )
+                    address6[i] = ntohs( ((uint16_t*) &m_address.ipv6)[i] );
+                inet_ntop( AF_INET6, address6, addressString, INET6_ADDRSTRLEN );
                 snprintf( buffer, bufferSize, "[%s]:%d", addressString, m_port );
                 return buffer;
             }
@@ -297,22 +266,25 @@ namespace yojimbo
 
     bool Address::IsLinkLocal() const
     {
-        return m_type == ADDRESS_IPV6 && m_address.ipv6[0] == htons( 0xfe80 );
+        return m_type == ADDRESS_IPV6 && m_address.ipv6[0] == 0xfe80;
     }
 
     bool Address::IsSiteLocal() const
     {
-        return m_type == ADDRESS_IPV6 && m_address.ipv6[0] == htons( 0xfec0 );
+        return m_type == ADDRESS_IPV6 && m_address.ipv6[0] == 0xfec0;
     }
 
     bool Address::IsMulticast() const
     {
-        return m_type == ADDRESS_IPV6 && m_address.ipv6[0] == htons( 0xff00 );
+        return m_type == ADDRESS_IPV6 && m_address.ipv6[0] == 0xff00;
     }
 
     bool Address::IsLoopback() const
     {
-        return ( m_type == ADDRESS_IPV4 && m_address.ipv4 == htonl( 0x7F000001 ) ) 
+        return ( m_type == ADDRESS_IPV4 && m_address.ipv4[0] == 127 
+                                        && m_address.ipv4[1] == 0
+                                        && m_address.ipv4[2] == 0
+                                        && m_address.ipv4[3] == 1 )
                                             ||
                ( m_type == ADDRESS_IPV6 && m_address.ipv6[0] == 0
                                         && m_address.ipv6[1] == 0
@@ -321,14 +293,14 @@ namespace yojimbo
                                         && m_address.ipv6[4] == 0
                                         && m_address.ipv6[5] == 0
                                         && m_address.ipv6[6] == 0
-                                        && m_address.ipv6[7] == htons( 0x0001 ) );
+                                        && m_address.ipv6[7] == 0x0001 );
     }
 
     bool Address::IsGlobalUnicast() const
     {
-        return m_type == ADDRESS_IPV6 && m_address.ipv6[0] != htons( 0xfe80 )
-                                      && m_address.ipv6[0] != htons( 0xfec0 )
-                                      && m_address.ipv6[0] != htons( 0xff00 )
+        return m_type == ADDRESS_IPV6 && m_address.ipv6[0] != 0xfe80
+                                      && m_address.ipv6[0] != 0xfec0
+                                      && m_address.ipv6[0] != 0xff00
                                       && !IsLoopback();
     }
 

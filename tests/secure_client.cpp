@@ -22,14 +22,16 @@
     USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#define CLIENT 1
-#define LOGGING 1
-
-#include "shared.h"
-#include <signal.h>
+#include "yojimbo.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <time.h>
+#include <signal.h>
+#include "shared.h"
+
+using namespace yojimbo;
 
 static volatile int quit = 0;
 
@@ -38,20 +40,18 @@ void interrupt_handler( int /*dummy*/ )
     quit = 1;
 }
 
-int ConnectMain( int argc, char * argv[] )
-{
-    (void)argc;
-    (void)argv;
+int ClientMain( int argc, char * argv[] )
+{   
+    (void) argc;
+    (void) argv;
 
     printf( "\nconnecting client (secure)\n" );
 
-    Allocator & allocator = GetDefaultAllocator();
-
     uint64_t clientId = 0;
-    RandomBytes( (uint8_t*) &clientId, 8 );
+    random_bytes( (uint8_t*) &clientId, 8 );
     printf( "client id is %.16" PRIx64 "\n", clientId );
 
-    Matcher matcher( allocator );
+    Matcher matcher( GetDefaultAllocator() );
 
     if ( !matcher.Initialize() )
     {
@@ -65,44 +65,35 @@ int ConnectMain( int argc, char * argv[] )
 
     if ( matcher.GetMatchStatus() == MATCH_FAILED )
     {
-        printf( "\nRequest match failed. Is the matcher running? Please run \"premake5 matcher\" before you connect a secure client\n\n" );
+        printf( "\nRequest match failed. Is the matcher running? Please run \"premake5 matcher\" before you connect a secure client\n" );
         return 1;
     }
 
-    MatchResponse matchResponse;
-
-    matcher.GetMatchResponse( matchResponse );
-
-    if ( matchResponse.numServerAddresses == 0 )
-    {
-        printf( "error: could not find a match\n" );
-        return 1;
-    }
-
-    printf( "received match response\n" );
+    uint8_t connectToken[ConnectTokenBytes];
+    matcher.GetConnectToken( connectToken );
+    printf( "received connect token from matcher\n" );
 
     double time = 100.0;
 
-    NetworkTransport clientTransport( GetDefaultAllocator(), Address("0.0.0.0"), ProtocolId, time );
+    ClientServerConfig config;
+    config.protocolId = ProtocolId;
 
-    if ( clientTransport.GetError() != SOCKET_ERROR_NONE )
+    Client client( GetDefaultAllocator(), Address("0.0.0.0"), config, adapter, time );
+
+    Address serverAddress( "127.0.0.1", ServerPort );
+
+    if ( argc == 2 )
     {
-        printf( "error: failed to initialize client socket\n" );
-        return 1;
+        Address commandLineAddress( argv[1] );
+        if ( commandLineAddress.IsValid() )
+        {
+            if ( commandLineAddress.GetPort() == 0 )
+                commandLineAddress.SetPort( ServerPort );
+            serverAddress = commandLineAddress;
+        }
     }
-    
-    printf( "client started on port %d\n", clientTransport.GetAddress().GetPort() );
 
-    GameClient client( GetDefaultAllocator(), clientTransport, ClientServerConfig(), time );
-
-    client.Connect( clientId,
-                    matchResponse.serverAddresses,
-                    matchResponse.numServerAddresses,
-                    matchResponse.connectTokenData, 
-                    matchResponse.connectTokenNonce, 
-                    matchResponse.clientToServerKey,
-                    matchResponse.serverToClientKey,
-                    matchResponse.connectTokenExpireTimestamp );
+    client.Connect( clientId, connectToken );
 
     const double deltaTime = 0.1;
 
@@ -112,34 +103,23 @@ int ConnectMain( int argc, char * argv[] )
     {
         client.SendPackets();
 
-        clientTransport.WritePackets();
-
-        clientTransport.ReadPackets();
-
         client.ReceivePackets();
-
-        client.CheckForTimeOut();
 
         if ( client.IsDisconnected() )
             break;
-
+     
         time += deltaTime;
 
         client.AdvanceTime( time );
 
-        clientTransport.AdvanceTime( time );
-
         if ( client.ConnectionFailed() )
             break;
 
-        platform_sleep( deltaTime );
+        yojimbo_sleep( deltaTime );    
     }
 
-    if ( quit )
-        printf( "\nclient stopped\n" );
-
     client.Disconnect();
-
+    
     return 0;
 }
 
@@ -151,9 +131,15 @@ int main( int argc, char * argv[] )
         return 1;
     }
 
-    int result = ConnectMain( argc, argv );
+    yojimbo_log_level( YOJIMBO_LOG_LEVEL_INFO );
+
+    srand( (unsigned int) time( NULL ) );
+
+    int result = ClientMain( argc, argv );
 
     ShutdownYojimbo();
+
+    printf( "\n" );
 
     return result;
 }

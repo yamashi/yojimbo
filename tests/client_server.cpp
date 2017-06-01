@@ -22,129 +22,97 @@
     USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#define SERVER 1
-#define CLIENT 1
-#define MATCHER 1
-#define LOGGING 1
-
+#include "yojimbo.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <inttypes.h>
+#include <time.h>			 
+#include <signal.h>
 #include "shared.h"
+
+using namespace yojimbo;
+
+static volatile int quit = 0;
+
+void interrupt_handler( int /*dummy*/ )
+{
+    quit = 1;
+}
 
 int ClientServerMain()
 {
-    LocalMatcher matcher;
-
-    uint64_t clientId = 1;
-
-    uint8_t connectTokenData[ConnectTokenBytes];
-    uint8_t connectTokenNonce[NonceBytes];
-
-    uint8_t clientToServerKey[KeyBytes];
-    uint8_t serverToClientKey[KeyBytes];
-
-    int numServerAddresses;
-    Address serverAddresses[MaxServersPerConnect];
-
-    memset( connectTokenNonce, 0, NonceBytes );
-
-    uint64_t connectTokenExpireTimestamp;
-
-    if ( !matcher.RequestMatch( clientId, connectTokenData, connectTokenNonce, clientToServerKey, serverToClientKey, connectTokenExpireTimestamp, numServerAddresses, serverAddresses ) )
-    {
-        printf( "error: request match failed\n" );
-        return 1;
-    }
-
-    Address clientAddress( "::1", ClientPort );
-    Address serverAddress( "::1", ServerPort );
-
     double time = 100.0;
 
-    NetworkTransport clientTransport( GetDefaultAllocator(), clientAddress, ProtocolId, time );
-    NetworkTransport serverTransport( GetDefaultAllocator(), serverAddress, ProtocolId, time );
+    ClientServerConfig config;
 
-    if ( clientTransport.GetError() != SOCKET_ERROR_NONE || serverTransport.GetError() != SOCKET_ERROR_NONE )
-    {
-        printf( "error: failed to initialize sockets\n" );
+    uint8_t privateKey[KeyBytes];
+    memset( privateKey, 0, KeyBytes );
+
+    printf( "starting server on port %d\n", ServerPort );
+
+    Server server( GetDefaultAllocator(), privateKey, Address( "127.0.0.1", ServerPort ), config, adapter, time );
+
+    server.Start( MaxClients );
+
+    if ( !server.IsRunning() )
         return 1;
-    }
 
-    clientTransport.SetNetworkConditions( 250, 250, 5, 10 );
-    serverTransport.SetNetworkConditions( 250, 250, 5, 10 );
+    printf( "started server\n" );
 
-    GameClient client( GetDefaultAllocator(), clientTransport, ClientServerConfig(), time );
+    uint64_t clientId = 0;
+    random_bytes( (uint8_t*) &clientId, 8 );
+    printf( "client id is %.16" PRIx64 "\n", clientId );
 
-    GameServer server( GetDefaultAllocator(), serverTransport, ClientServerConfig(), time );
+    Client client( GetDefaultAllocator(), Address("0.0.0.0"), config, adapter, time );
 
-    server.SetServerAddress( serverAddress );
+    Address serverAddress( "127.0.0.1", ServerPort );
 
-    server.Start();
-    
-    client.Connect( clientId, serverAddress, connectTokenData, connectTokenNonce, clientToServerKey, serverToClientKey, connectTokenExpireTimestamp );
+    client.InsecureConnect( privateKey, clientId, serverAddress );
 
-    int result = 1;
+    const double deltaTime = 0.1;
 
-    const int NumIterations = 256;
+    signal( SIGINT, interrupt_handler );    
 
-    for ( int iteration = 0; iteration < NumIterations; ++iteration )
+    while ( !quit )
     {
-        client.SendPackets();
         server.SendPackets();
+        client.SendPackets();
 
-        clientTransport.WritePackets();
-        serverTransport.WritePackets();
-
-        clientTransport.ReadPackets();
-        serverTransport.ReadPackets();
-
-        client.ReceivePackets();
         server.ReceivePackets();
-
-        client.CheckForTimeOut();
-        server.CheckForTimeOut();
-
-        if ( client.ConnectionFailed() )
-        {
-            printf( "error: client connect failed!\n" );
-            break;
-        }
-
-        if ( client.IsConnected() && server.GetNumConnectedClients() == 1 )
-        {
-            // success
-            client.Disconnect();
-            result = 0;
-        }
-
-        time += 0.1f;
-
-        if ( !client.IsConnecting() && !client.IsConnected() && server.GetNumConnectedClients() == 0 )
-            break;
+        client.ReceivePackets();
+     
+        time += deltaTime;
 
         client.AdvanceTime( time );
+
+        if ( client.IsDisconnected() )
+            break;
+
+        time += deltaTime;
+
         server.AdvanceTime( time );
 
-        clientTransport.AdvanceTime( time );
-        serverTransport.AdvanceTime( time );
+        yojimbo_sleep( deltaTime );
     }
 
     client.Disconnect();
-
     server.Stop();
 
-    return result;
+    return 0;
 }
 
 int main()
 {
-    printf( "\n" );
-
-    verbose_logging = true;
+    printf( "\n[client/server]\n" );
 
     if ( !InitializeYojimbo() )
     {
         printf( "error: failed to initialize Yojimbo!\n" );
         return 1;
     }
+
+    yojimbo_log_level( YOJIMBO_LOG_LEVEL_INFO );
 
     srand( (unsigned int) time( NULL ) );
 

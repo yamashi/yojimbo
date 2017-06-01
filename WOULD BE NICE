@@ -2,31 +2,13 @@ WOULD BE NICE
 
     ------------------
 
-    Packet processor max packet size is deceptive. You give it a max packet size, it adds encryption overhead to it.
+    It's possible to send a message that is too large to be transmitted in the reliable-ordered channel.
 
-    It should be the other way around. Specify the maximum packet size you want to generate (total). Calculate how much packet payload data can be allowed while still hitting that maximum, vs. padding it out.
+    This currently stalls out the channel and presents no error to the user.
 
-    I think this is more honest, and it is what the user of this system would be expecting. It would also simplify the interface for the packet processor.
+    Instead of this, it would be good to detect this error and disconnect the client.
 
-    ------------------
-
-    I notice that the allocators aren't checked on the server when a client is disconnected.
-
-    It seems that although I have silo'd clients into their own allocator, I don't think I've done enough work (yet) to ensure that a malicious client can't shit up an allocator after it quits.
-
-    I really should add some code to check that all allocations are cleaned up after the server cleans up an allocator slot.
-
-    This might require adding some code to the transport to invalidate packets in queues that belong to a particular allocator.
-
-    This seems a bit weird, but I think, I'm not really comfortable with the allocator setup until I can assert that a client has properly cleaned up all allocations made by its client slot allocator when the server resets that slot.
-
-    Same logic applies to message factories. Make sure all messages are cleaned up. This is an important security measure, to make sure the server isn't leaking memory from one client session to the next.
-
-    ------------------
-
-    Client should also do the same checks on the allocator between each connect/disconnect.
-
-    This is less important on the client than the server, because it would only bring down the one client, but there should still be no memory leaks as the client connects and disconnects.
+    This should be done on both server and client. eg. a new channel error type that feeds into connection error.
 
     ------------------
 
@@ -38,21 +20,9 @@ WOULD BE NICE
 
     ------------------
 
-    Probably a good safety measure to verify that a message sent across a channel belongs to the message factory set on the channel. 
+    Would be nice if each message factory had an easy to access hash (uint64_t) that could be use to quickly test if two factories are compatible.
 
-    It's an easy mistake to make, and would be hard to track down otherwise.
-
-    ------------------
-    
-    Would be nice if packet factories named each packet type as it is registered, so this could be used in debugging.
-
-    Same logic could apply to message factories as well.
-
-    ------------------
-
-    Would be nice if each packet factory or message factory had an easy to access hash (uint64_t) that could be use to quickly test if two factories are compatible.
-
-    This hash also input into a protocol id hash now that it's 64 bit as well.
+    This hash could also input into a protocol id hash now that it's 64 bit as well.
 
     ------------------
 
@@ -60,17 +30,11 @@ WOULD BE NICE
 
     ------------------
 
-    Add tests that simulate each of the server-side client error conditions, eg. allocator, packet factory, message factory, connection, and then verify that after these errors happen, that client slot is cleared and a client can connect to it again, otherwise, possibility that I have error codes not getting cleared by accident on client disconnect.
+    Add tests that simulate each of the server-side client error conditions, eg. allocator, message factory, connection, and then verify that after these errors happen, that client slot is cleared and a client can connect to it again, otherwise, possibility that I have error codes not getting cleared by accident on client disconnect.
 
     ------------------
 
     Add functionality to connection and client/server to get the set of packet acks, so users can get acks and build their own systems on top of that.
-
-    The current system based around callbacks is unweildy.
-
-    ------------------
-
-    Optimize the simulator to keep track of head and tail internally, so it can avoid scanning the entire 4096 entries on each receive call.
 
     ------------------
 
@@ -78,10 +42,10 @@ WOULD BE NICE
 
     ------------------
 
-    Implement QoS within the connection, eg. packet loss, latency measurements etc, and make this available to the user to query.
+    What if yojimbo was simplified, just to have two channels, reliable-ordered, and unreliable-unordered.
 
-    ------------------
+    Why should the user need to configure separate channels? It's not really necessary in my opinion.
 
-    Clean up profile.cpp with helper methods. It's overly complicated for what it does!
+    Think about this, because it's a big change. It does simplify the library and its configuration, but on the other hand, it reduces flexibility.
 
     ------------------

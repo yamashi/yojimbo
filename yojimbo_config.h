@@ -1,25 +1,7 @@
 /*
-    Yojimbo Client/Server Network Protocol Library.
-
-    Copyright © 2016, The Network Protocol Company, Inc.
-
-    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-        1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-        2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer 
-           in the documentation and/or other materials provided with the distribution.
-
-        3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived 
-           from this software without specific prior written permission.
-
-    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-    WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
-    USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    Yojimbo Network Library.
+    
+    Copyright © 2016 - 2017, The Network Protocol Company, Inc.
 */
 
 #ifndef YOJIMBO_CONFIG_H
@@ -27,26 +9,60 @@
 
 /** @file */
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
 #define YOJIMBO_MAJOR_VERSION 0
-#define YOJIMBO_MINOR_VERSION 4
+#define YOJIMBO_MINOR_VERSION 5
 #define YOJIMBO_PATCH_VERSION 0
 
-#if    defined(__386__) || defined(i386)    || defined(__i386__)  \
-    || defined(__X86)   || defined(_M_IX86)                       \
-    || defined(_M_X64)  || defined(__x86_64__)                    \
-    || defined(alpha)   || defined(__alpha) || defined(__alpha__) \
-    || defined(_M_ALPHA)                                          \
-    || defined(ARM)     || defined(_ARM)    || defined(__arm__)   \
-    || defined(WIN32)   || defined(_WIN32)  || defined(__WIN32__) \
-    || defined(_WIN32_WCE) || defined(__NT__)                     \
-    || defined(__MIPSEL__)
-  #define YOJIMBO_LITTLE_ENDIAN 1
-#else
-  #define YOJIMBO_BIG_ENDIAN 1
+// Endianness detection from rapidjson
+#if !defined(YOJIMBO_LITTLE_ENDIAN) && !defined(YOJIMBO_BIG_ENDIAN)
+
+  #ifdef __BYTE_ORDER__
+    #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+      #define YOJIMBO_LITTLE_ENDIAN 1
+    #elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+      #define YOJIMBO_BIG_ENDIAN 1
+    #else
+      #error Unknown machine endianess detected. User needs to define YOJIMBO_LITTLE_ENDIAN or YOJIMBO_BIG_ENDIAN.
+    #endif // __BYTE_ORDER__
+  
+  // Detect with GLIBC's endian.h
+  #elif defined(__GLIBC__)
+    #include <endian.h>
+    #if (__BYTE_ORDER == __LITTLE_ENDIAN)
+      #define YOJIMBO_LITTLE_ENDIAN 1
+    #elif (__BYTE_ORDER == __BIG_ENDIAN)
+      #define YOJIMBO_BIG_ENDIAN 1
+    #else
+      #error Unknown machine endianess detected. User needs to define YOJIMBO_LITTLE_ENDIAN or YOJIMBO_BIG_ENDIAN.
+    #endif // __BYTE_ORDER
+  
+  // Detect with _LITTLE_ENDIAN and _BIG_ENDIAN macro
+  #elif defined(_LITTLE_ENDIAN) && !defined(_BIG_ENDIAN)
+    #define YOJIMBO_LITTLE_ENDIAN 1
+  #elif defined(_BIG_ENDIAN) && !defined(_LITTLE_ENDIAN)
+    #define YOJIMBO_BIG_ENDIAN 1
+  
+  // Detect with architecture macros
+  #elif    defined(__sparc)     || defined(__sparc__)                           \
+        || defined(_POWER)      || defined(__powerpc__)                         \
+        || defined(__ppc__)     || defined(__hpux)      || defined(__hppa)      \
+        || defined(_MIPSEB)     || defined(_POWER)      || defined(__s390__)
+    #define YOJIMBO_BIG_ENDIAN 1
+  #elif    defined(__i386__)    || defined(__alpha__)   || defined(__ia64)      \
+        || defined(__ia64__)    || defined(_M_IX86)     || defined(_M_IA64)     \
+        || defined(_M_ALPHA)    || defined(__amd64)     || defined(__amd64__)   \
+        || defined(_M_AMD64)    || defined(__x86_64)    || defined(__x86_64__)  \
+        || defined(_M_X64)      || defined(__bfin__)
+    #define YOJIMBO_LITTLE_ENDIAN 1
+  #elif defined(_MSC_VER) && defined(_M_ARM)
+    #define YOJIMBO_LITTLE_ENDIAN 1
+  #else
+    #error Unknown machine endianess detected. User needs to define YOJIMBO_LITTLE_ENDIAN or YOJIMBO_BIG_ENDIAN. 
+  #endif
 #endif
 
 #ifdef _MSC_VER
@@ -66,27 +82,17 @@
 #define YOJIMBO_PLATFORM YOJIMBO_PLATFORM_UNIX
 #endif
 
-#define YOJIMBO_SOCKETS                             1
-
-#if !defined( YOJIMBO_SECURE_MODE )
-#define YOJIMBO_SECURE_MODE                         0               ///< IMPORTANT: This should be set to 1 in your retail build!
-#endif // #if !defined( YOJIMBO_SECURE_MODE )
-
 #define YOJIMBO_SERIALIZE_CHECKS                    1
 
 #ifndef NDEBUG
 
 #define YOJIMBO_DEBUG_MEMORY_LEAKS                  1
-
-#define YOJIMBO_DEBUG_PACKET_LEAKS                  1
-    
 #define YOJIMBO_DEBUG_MESSAGE_LEAKS                 1
-
-#define YOJIMBO_VALIDATE_PACKET_BUDGET              1
+#define YOJIMBO_DEBUG_MESSAGE_BUDGET                1
 
 #endif // #ifndef NDEBUG
 
-#define YOJIMBO_DEBUG_SPAM                          0
+#define YOJIMBO_ENABLE_LOGGING                      1
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -96,29 +102,16 @@
 namespace yojimbo
 {
     const int MaxClients = 64;                                      ///< The maximum number of clients supported by this library. You can increase this if you want, but this library is designed around patterns that work best for [2,64] player games. If your game has less than 64 clients, reducing this will save memory.
-    const int MaxChannels = 64;                                     ///< The maximum number of message channels supported by this library. If you need less than 64 channels, reducing this will save memory.
-    const int ConnectTokenBytes = 1024;                             ///< The size of a connect token (bytes). Connect tokens are generated by matcher.go and sent from client to server as part of the secure connection process.
-    const int ChallengeTokenBytes = 256;                            ///< Size of a challenge token (bytes). Challenge tokens are sent back from server to client as part of secure connect. Challenge tokens are intentionally smaller than connect tokens to avoid DDoS amplification attacks.
-    const int MaxServersPerConnect = 8;                             ///< The maximum number of server addresses per-connect token, and (conveniently) the maximum number of server addresses that can be passed in to Client::Connect and Client::InsecureConnect.
-    const int NonceBytes = 8;                                       ///< The size of a nonce (number, used only once) used as part of the encryption. Corresponds to a 64 bit sequence number that increases with block of data that is encrypted.
-    const int KeyBytes = 32;                                        ///< Size of the encryption key used for symmetric encryption of packets and tokens (bytes).
-    const int MacBytes = 16;                                        ///< Size of the message authentication code (MAC) sent with each encrypted packet and token (bytes). Used to quickly test if a packet or token has been modified and reject before attempting to decrypt it.
-    const int MaxContextMappings = MaxClients;                      ///< The maximum number transport context mappings. When a Transport is used with a Server, we need one context per-connected client, so this is set to MaxClients by default. If you use transport directly without client/server, you might want to set this to some different number.
-    const int MaxEncryptionMappings = MaxClients * 8;               ///< The maximum number of encryption mappings for a transport. Encryption mappings are needed for potential clients during the connection negotiation process, and per-client once they are fully connected. Because multiple clients can be negotiating connection at the same time, this needs to be some multiple of MaxClients.
-    const int MaxConnectTokenEntries = MaxClients * 16;             ///< The maximum number of connect tokens entries stored in the Server when filtering out connect tokens that have already been used to protect against packet replay attacks. This should be a generous multiple of MaxClients.
-    const int ReplayProtectionBufferSize = 64;                      ///< The size of the replay protection buffer (number of packets). Packets that fit in this buffer are passed to the application the first time they are received and rejected after that. Packets older than the buffer size are rejected. Protects against packets being recorded and replayed in an attempt to corrupt internal protocol state.
-    const int DefaultMaxPacketSize = 4 * 1024;                      ///< The default maximum packet size that can be sent with a transport. You can override this by passing in a different value to the transport constructor.
-    const int DefaultPacketSendQueueSize = 1024;                    ///< The default packet send queue size for a transport (number of packets). You can override this by passing in a different value to the transport constructor.
-    const int DefaultPacketReceiveQueueSize = 1024;                 ///< The default packet receive queue size for a transport (number of packets). You can override this by passing in a different value to the transport constructor.
-    const int DefaultSocketSendBufferSize = 1024 * 1024;            ///< The default socket send buffer size for a transport (bytes). Corresponds to SO_SNDBUF on the socket. You can override this by passing in a different value to the transport constructor.
-    const int DefaultSocketReceiveBufferSize = 1024 * 1024;         ///< The default socket receive buffer size for a transport (bytes). Corresponds to SO_RECBUF on the socket. You can override this by passing in a different value to the transport constructor.
-    const int ConservativeMessageHeaderEstimate = 32;               ///< Conservative message header estimate used when checking that message data fits within the packet budget. See YOJIMBO_VALIDATE_PACKET_BUDGET
-    const int ConservativeFragmentHeaderEstimate = 64;              ///< Conservative fragment header estimate used when checking that message data fits within the packet budget. See YOJIMBO_VALIDATE_PACKET_BUDGET
-    const int ConservativeChannelHeaderEstimate = 32;               ///< Conservative channel header estimate used when checking that message data fits within the packet budget. See YOJIMBO_VALIDATE_PACKET_BUDGET
-    const int ConservativeConnectionPacketHeaderEstimate = 128;     ///< Conservative packet header estimate used when checking that message data fits within the packet budget. See YOJIMBO_VALIDATE_PACKET_BUDGET
-	const uint32_t SerializeCheckValue = 0x12345678;				///< The value written to the stream for serialize checks. See WriteStream::SerializeCheck and ReadStream::SerializeCheck.
+    const int MaxChannels = 64;                                     ///< The maximum number of message channels supported by this library. If you need less than 64 channels per-packet, reducing this will save memory.
+    const int KeyBytes = 32;                                        ///< Size of encryption key for dedicated client/server in bytes. Must be equal to key size for libsodium encryption primitive. Do not change.
+    const int ConnectTokenBytes = 2048;                             ///< Size of the encrypted connect token data return from the matchmaker. Must equal size of NETCODE_CONNECT_TOKEN_BYTE (2048).
+    const uint32_t SerializeCheckValue = 0x12345678;                ///< The value written to the stream for serialize checks. See WriteStream::SerializeCheck and ReadStream::SerializeCheck.
+    const int ConservativeMessageHeaderEstimate = 32;   // todo: bits? bytes? be specific!
+    const int ConservativeFragmentHeaderEstimate = 64;
+    const int ConservativeChannelHeaderEstimate = 32;
+    const int ConservativeConnectionPacketHeaderEstimate = 12;      // todo: actually break this down into component parts, eg. header, serialize check at start, serialize check at end?
 
-    /// Channel type. Determines the reliability and ordering guarantees for a channel.
+    /// Determines the reliability and ordering guarantees for a channel.
 
     enum ChannelType
     {
@@ -173,7 +166,7 @@ namespace yojimbo
             disableBlocks = false;
             sendQueueSize = 1024;
             receiveQueueSize = 1024;
-            sentPacketBufferSize = 1024;
+            sentPacketBufferSize = 1024;                            // todo: rename this. it's not clear what it does
             maxMessagesPerPacket = 64;
             packetBudget = 1100;
             maxBlockSize = 256 * 1024;
@@ -195,21 +188,19 @@ namespace yojimbo
         
         Typically configured as part of a ClientServerConfig which is passed into Client and Server constructors.
      */
-    
+
     struct ConnectionConfig
     {
-        int connectionPacketType;                               ///< Connection packet type (so you can override it). Only necessary to set this if you are using Connection directly. Not necessary to set when using client/server as it overrides it to CLIENT_SERVER_PACKET_CONNECTION for you automatically.
-        int slidingWindowSize;                                  ///< The size of the sliding window used for packet acks (# of packets in history). Depending on your packet send rate, you should make sure this buffer is large enough to cover at least a few seconds worth of packets.
-        int maxPacketSize;                                      ///< The maximum size of packets generated to transmit messages between client and server (bytes).
         int numChannels;                                        ///< Number of message channels in [1,MaxChannels]. Each message channel must have a corresponding configuration below.
+        int maxPacketSize;                                      ///< The maximum size of packets generated to transmit messages between client and server (bytes).
+        int slidingWindowSize;                                  ///< The size of the sliding window used for packet acks (# of packets in history). Depending on your packet send rate, you should make sure this buffer is large enough to cover at least a few seconds worth of packets.
         ChannelConfig channel[MaxChannels];                     ///< Per-channel configuration. See ChannelConfig for details.
 
         ConnectionConfig()
         {
-            connectionPacketType = 0;
-            maxPacketSize = 4 * 1024;
-            slidingWindowSize = 1024;
             numChannels = 1;
+            maxPacketSize = 8 * 1024;
+            slidingWindowSize = 1024;
         }
     };
 
@@ -221,31 +212,31 @@ namespace yojimbo
         Please make sure that the message configuration is identical between client and server or it will not work.
      */
 
-    struct ClientServerConfig
+    struct BaseClientServerConfig : public ConnectionConfig
     {
+        // todo: config needed to create reliable.io endpoints should go here
+
+        uint64_t protocolId;                                    ///< Clients can only connect to servers with the same protocol id. Use this for versioning.
         int clientMemory;                                       ///< Memory allocated inside Client for packets, messages and stream allocations (bytes)
         int serverGlobalMemory;                                 ///< Memory allocated inside Server for global connection request and challenge response packets (bytes)
         int serverPerClientMemory;                              ///< Memory allocated inside Server for packets, messages and stream allocations per-client (bytes)
-        int numDisconnectPackets;                               ///< Number of disconnect packets to send on clean disconnect. Make sure the other side of the connection receives a disconnect packet and disconnects cleanly, even under packet loss. Without this, the other side times out and this ties up that slot on the server for an extended period.
-        float connectionNegotiationSendRate;                    ///< Send rate for packets sent during connection negotiation process. eg. connection request and challenge response packets (packets per-second).
-        float connectionNegotiationTimeOut;                     ///< Connection negotiation times out if no response is received from the other side in this amount of time (seconds).
-        float connectionKeepAliveSendRate;                      ///< Keep alive packets are sent at this rate between client and server if no other packets are sent by the client or server. Avoids timeout in situations where you are not sending packets at a steady rate (packets per-second).
-        float connectionTimeOut;                                ///< Once a connection is established, it times out if it hasn't received any packets from the other side in this amount of time (seconds).
-        bool enableMessages;                                    ///< If this is true then you can send messages between client and server. Set to false if you don't want to use messages and you want to extend the protocol by adding new packet types instead.
-        ConnectionConfig connectionConfig;                      ///< Configures connection properties and message channels between client and server. Must be identical between client and server to work properly. Only used if enableMessages is true.
-
-        ClientServerConfig()
+        bool networkSimulator;                                  ///< If true then a network simulator is created for simulating latency, jitter, packet loss and duplicates.
+        int maxSimulatorPackets;                                ///< Maximum number of packets that can be stored in the network simulator. Additional packets are dropped.
+        
+        BaseClientServerConfig()
         {
-            clientMemory = 2 * 1024 * 1024;
-            serverGlobalMemory = 2 * 1024 * 1024;
-            serverPerClientMemory = 2 * 1024 * 1024;
-            numDisconnectPackets = 10;
-            connectionNegotiationSendRate = 10.0f;
-            connectionNegotiationTimeOut = 5.0f;
-            connectionKeepAliveSendRate = 10.0f;
-            connectionTimeOut = 5.0f;
-            enableMessages = true;
+            protocolId = 0;
+            clientMemory = 10 * 1024 * 1024;
+            serverGlobalMemory = 10 * 1024 * 1024;
+            serverPerClientMemory = 10 * 1024 * 1024;
+            networkSimulator = true;
+            maxSimulatorPackets = 4 * 1024;
         }
+    };
+
+    struct ClientServerConfig : public BaseClientServerConfig
+    {
+        // todo: config needed to create netcode.io client/server should go here
     };
 }
 

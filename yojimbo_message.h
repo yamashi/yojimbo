@@ -1,25 +1,7 @@
 /*
-    Yojimbo Client/Server Network Protocol Library.
+    Yojimbo Network Library.
     
-    Copyright © 2016, The Network Protocol Company, Inc.
-
-    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-        1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-        2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer 
-           in the documentation and/or other materials provided with the distribution.
-
-        3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived 
-           from this software without specific prior written permission.
-
-    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-    WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
-    USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    Copyright © 2016 - 2017, The Network Protocol Company, Inc.
 */
 
 #ifndef YOJIMBO_MESSAGE_H
@@ -29,7 +11,6 @@
 #include "yojimbo_stream.h"
 #include "yojimbo_serialize.h"
 #include "yojimbo_allocator.h"
-#include "yojimbo_bit_array.h"
 
 #if YOJIMBO_DEBUG_MESSAGE_LEAKS
 #include <map>
@@ -62,10 +43,7 @@ namespace yojimbo
         
         @see BlockMessage
         @see MessageFactory
-        @see ClientServerConfig
         @see Connection
-        @see ConnectionConfig
-        @see ChannelConfig
      */
 
     class Message : public Serializable
@@ -89,7 +67,7 @@ namespace yojimbo
 
             When messages are sent over a reliable-ordered channel, the message id starts at 0 and increases with each message sent over that channel.
 
-            When messages are sent over an unreliable-unordered channel, the message id is set to the sequence number of the packet they are included in.
+            When messages are sent over an unreliable-unordered channel, the message id is set to the sequence number of the packet it was delivered in.
 
             @param id The message id.
          */
@@ -126,7 +104,7 @@ namespace yojimbo
             @returns The reference count on the message.
          */
 
-        int GetRefCount() { return m_refCount; }
+        int GetRefCount() const { return m_refCount; }
 
         /**
             Is this a block message?
@@ -202,7 +180,7 @@ namespace yojimbo
             This way we don't have to pass messages by value (more efficient) and messages get cleaned up when they are delivered and no packets refer to them.
          */
 
-        void AddRef() { m_refCount++; }
+        void Acquire() { yojimbo_assert( m_refCount > 0 ); m_refCount++; }
 
         /**
             Remove a reference from the message.
@@ -210,7 +188,7 @@ namespace yojimbo
             Message are deleted when the number of references reach zero. Messages have reference count of 1 after creation.
          */
 
-        void Release() { assert( m_refCount > 0 ); m_refCount--; }
+        void Release() { yojimbo_assert( m_refCount > 0 ); m_refCount--; }
 
         /**
             Message destructor.
@@ -222,7 +200,7 @@ namespace yojimbo
 
         virtual ~Message()
         {
-            assert( m_refCount == 0 );
+            yojimbo_assert( m_refCount == 0 );
         }
 
     private:
@@ -262,7 +240,7 @@ namespace yojimbo
 
             Don't call this directly, use a message factory instead.
 
-            @see MessageFactory::Create
+            @see MessageFactory::CreateMessage
          */
 
         explicit BlockMessage() : Message( 1 ), m_allocator(NULL), m_blockData(NULL), m_blockSize(0) {}
@@ -275,9 +253,9 @@ namespace yojimbo
 
         void AttachBlock( Allocator & allocator, uint8_t * blockData, int blockSize )
         {
-            assert( blockData );
-            assert( blockSize > 0 );
-            assert( !m_blockData );
+            yojimbo_assert( blockData );
+            yojimbo_assert( blockSize > 0 );
+            yojimbo_assert( !m_blockData );
 
             m_allocator = &allocator;
             m_blockData = blockData;
@@ -317,6 +295,17 @@ namespace yojimbo
          */
 
         uint8_t * GetBlockData()
+        {
+            return m_blockData;
+        }
+
+        /**
+            Get a constant pointer to the block data.
+
+            @returns A constant pointer to the block data. NULL if no block is attached.
+         */
+
+        const uint8_t * GetBlockData() const
         {
             return m_blockData;
         }
@@ -374,7 +363,7 @@ namespace yojimbo
         Message factory error level.
      */
 
-    enum MessageFactoryError
+    enum MessageFactoryErrorLevel
     {
         MESSAGE_FACTORY_ERROR_NONE,                                             ///< No error. All is well.
         MESSAGE_FACTORY_ERROR_FAILED_TO_ALLOCATE_MESSAGE,                       ///< Failed to allocate a message. Typically this means we ran out of memory on the allocator backing the message factory.
@@ -402,7 +391,7 @@ namespace yojimbo
 
         int m_numTypes;                                                         ///< The number of message types.
         
-        int m_error;                                                            ///< The message factory error level.
+        MessageFactoryErrorLevel m_errorLevel;                                  ///< The message factory error level.
 
     public:
 
@@ -419,7 +408,7 @@ namespace yojimbo
         {
             m_allocator = &allocator;
             m_numTypes = numTypes;
-            m_error = MESSAGE_FACTORY_ERROR_NONE;
+            m_errorLevel = MESSAGE_FACTORY_ERROR_NONE;
         }
 
         /**
@@ -430,7 +419,7 @@ namespace yojimbo
 
         virtual ~MessageFactory()
         {
-            assert( m_allocator );
+            yojimbo_assert( m_allocator );
 
             m_allocator = NULL;
 
@@ -462,25 +451,24 @@ namespace yojimbo
             @returns The allocated message, or NULL if the message could not be allocated. If the message allocation fails, the message factory error level is set to MESSAGE_FACTORY_ERROR_FAILED_TO_ALLOCATE_MESSAGE.
 
             @see MessageFactory::AddRef
-            @see MessageFactory::Release
+            @see MessageFactory::ReleaseMessage
          */
 
-        Message * Create( int type )
+        Message * CreateMessage( int type )
         {
-            assert( type >= 0 );
-            assert( type < m_numTypes );
+            yojimbo_assert( type >= 0 );
+            yojimbo_assert( type < m_numTypes );
 
-            Message * message = CreateMessage( type );
-
+            Message * message = CreateMessageInternal( type );
             if ( !message )
             {
-                m_error = MESSAGE_FACTORY_ERROR_FAILED_TO_ALLOCATE_MESSAGE;
+                m_errorLevel = MESSAGE_FACTORY_ERROR_FAILED_TO_ALLOCATE_MESSAGE;
                 return NULL;
             }
 
             #if YOJIMBO_DEBUG_MESSAGE_LEAKS
             allocated_messages[message] = 1;
-            assert( allocated_messages.find( message ) != allocated_messages.end() );
+            yojimbo_assert( allocated_messages.find( message ) != allocated_messages.end() );
             #endif // #if YOJIMBO_DEBUG_MESSAGE_LEAKS
 
             return message;
@@ -495,13 +483,11 @@ namespace yojimbo
             @see MessageFactory::Release
          */   
 
-        void AddRef( Message * message )
+        void AcquireMessage( Message * message )
         {
-            assert( message );
-            if ( !message )
-                return;
-
-            message->AddRef();
+            yojimbo_assert( message );
+            if ( message )
+                message->Acquire();
         }
 
         /**
@@ -513,9 +499,9 @@ namespace yojimbo
             @see MessageFactory::AddRef
          */
 
-        void Release( Message * message )
+        void ReleaseMessage( Message * message )
         {
-            assert( message );
+            yojimbo_assert( message );
             if ( !message )
                 return;
 
@@ -524,11 +510,11 @@ namespace yojimbo
             if ( message->GetRefCount() == 0 )
             {
                 #if YOJIMBO_DEBUG_MESSAGE_LEAKS
-                assert( allocated_messages.find( message ) != allocated_messages.end() );
+                yojimbo_assert( allocated_messages.find( message ) != allocated_messages.end() );
                 allocated_messages.erase( message );
                 #endif // #if YOJIMBO_DEBUG_MESSAGE_LEAKS
             
-                assert( m_allocator );
+                yojimbo_assert( m_allocator );
 
                 YOJIMBO_DELETE( *m_allocator, Message, message );
             }
@@ -553,7 +539,7 @@ namespace yojimbo
 
         Allocator & GetAllocator()
         {
-            assert( m_allocator );
+            yojimbo_assert( m_allocator );
             return *m_allocator;
         }
 
@@ -563,18 +549,18 @@ namespace yojimbo
             When used with a client or server, an error level on a message factory other than MESSAGE_FACTORY_ERROR_NONE triggers a client disconnect.
          */
 
-        int GetError() const
+        MessageFactoryErrorLevel GetErrorLevel() const
         {
-            return m_error;
+            return m_errorLevel;
         }
 
         /**
             Clear the error level back to no error.
          */
 
-        void ClearError()
+        void ClearErrorLevel()
         {
-            m_error = MESSAGE_FACTORY_ERROR_NONE;
+            m_errorLevel = MESSAGE_FACTORY_ERROR_NONE;
         }
 
     protected:
@@ -587,7 +573,7 @@ namespace yojimbo
             @returns The message created. Its reference count is 1.
          */
 
-        virtual Message * CreateMessage( int type ) { (void) type; return NULL; }
+        virtual Message * CreateMessageInternal( int type ) { (void) type; return NULL; }
 
         /**
             Set the message type of a message.
@@ -608,24 +594,20 @@ namespace yojimbo
     This is a helper macro to make declaring your own message factory class easier.
 
     @param factory_class The name of the message factory class to generate.
-    @param base_factory_class The name of the message factory class to derive from. If you don't have a custom base class, pass in MessageFactory.
     @param num_message_types The number of message types for this factory.
 
     See tests/shared.h for an example of usage.
  */
 
-#define YOJIMBO_MESSAGE_FACTORY_START( factory_class, base_factory_class, num_message_types )                                           \
+#define YOJIMBO_MESSAGE_FACTORY_START( factory_class, num_message_types )                                                               \
                                                                                                                                         \
-    class factory_class : public base_factory_class                                                                                     \
+    class factory_class : public MessageFactory                                                                                         \
     {                                                                                                                                   \
     public:                                                                                                                             \
-        factory_class( yojimbo::Allocator & allocator = yojimbo::GetDefaultAllocator(), int numMessageTypes = num_message_types )       \
-         : base_factory_class( allocator, numMessageTypes ) {}                                                                          \
-        yojimbo::Message * CreateMessage( int type )                                                                                    \
+        factory_class( yojimbo::Allocator & allocator ) : MessageFactory( allocator, num_message_types ) {}                             \
+        yojimbo::Message * CreateMessageInternal( int type )                                                                            \
         {                                                                                                                               \
-            yojimbo::Message * message = base_factory_class::CreateMessage( type );                                                     \
-            if ( message )                                                                                                              \
-                return message;                                                                                                         \
+            Message * message;                                                                                                          \
             yojimbo::Allocator & allocator = GetAllocator();                                                                            \
             (void) allocator;                                                                                                           \
             switch ( type )                                                                                                             \

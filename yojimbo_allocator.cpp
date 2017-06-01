@@ -1,30 +1,12 @@
 /*
-    Yojimbo Client/Server Network Protocol Library.
+    Yojimbo Network Library.
     
-    Copyright © 2016, The Network Protocol Company, Inc.
-
-    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-        1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-        2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer 
-           in the documentation and/or other materials provided with the distribution.
-
-        3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived 
-           from this software without specific prior written permission.
-
-    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-    WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
-    USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    Copyright © 2016 - 2017, The Network Protocol Company, Inc.
 */
 
 #include "yojimbo_config.h"
 #include "yojimbo_allocator.h"
-#include <assert.h>
+#include "yojimbo_platform.h"
 #include <stdlib.h>
 
 #if YOJIMBO_DEBUG_MEMORY_LEAKS
@@ -37,7 +19,7 @@ namespace yojimbo
 {
     Allocator::Allocator() 
     {
-        SetError( ALLOCATOR_ERROR_NONE );
+        SetErrorLevel( ALLOCATOR_ERROR_NONE );
     }
 
     Allocator::~Allocator()
@@ -59,11 +41,20 @@ namespace yojimbo
 #endif // #if YOJIMBO_DEBUG_MEMORY_LEAKS
     }
 
+    void Allocator::SetErrorLevel( AllocatorErrorLevel errorLevel ) 
+    {
+        if ( m_errorLevel == ALLOCATOR_ERROR_NONE && errorLevel != ALLOCATOR_ERROR_NONE )
+        {
+            yojimbo_printf( YOJIMBO_LOG_LEVEL_ERROR, "allocator went into error state: %s\n", GetAllocatorErrorString( errorLevel ) );
+        }
+        m_errorLevel = errorLevel;
+    }
+
     void Allocator::TrackAlloc( void * p, size_t size, const char * file, int line )
     {
 #if YOJIMBO_DEBUG_MEMORY_LEAKS
 
-        assert( m_alloc_map.find( p ) == m_alloc_map.end() );
+        yojimbo_assert( m_alloc_map.find( p ) == m_alloc_map.end() );
 
         AllocatorEntry entry;
         entry.size = size;
@@ -87,7 +78,7 @@ namespace yojimbo
         (void) file;
         (void) line;
 #if YOJIMBO_DEBUG_MEMORY_LEAKS
-        assert( m_alloc_map.find( p ) != m_alloc_map.end() );
+        yojimbo_assert( m_alloc_map.find( p ) != m_alloc_map.end() );
         m_alloc_map.erase( p );
 #endif // #if YOJIMBO_DEBUG_MEMORY_LEAKS
     }
@@ -100,7 +91,7 @@ namespace yojimbo
 
         if ( !p )
         {
-            SetError( ALLOCATOR_ERROR_FAILED_TO_ALLOCATE );
+            SetErrorLevel( ALLOCATOR_ERROR_OUT_OF_MEMORY );
             return NULL;
         }
 
@@ -123,30 +114,30 @@ namespace yojimbo
 
     static void * AlignPointerUp( void * memory, int align )
     {
-        assert( ( align & ( align - 1 ) ) == 0 );
+        yojimbo_assert( ( align & ( align - 1 ) ) == 0 );
         uintptr_t p = (uintptr_t) memory;
         return (void*) ( ( p + ( align - 1 ) ) & ~( align - 1 ) );
     }
 
     static void * AlignPointerDown( void * memory, int align )
     {
-        assert( ( align & ( align - 1 ) ) == 0 );
+        yojimbo_assert( ( align & ( align - 1 ) ) == 0 );
         uintptr_t p = (uintptr_t) memory;
         return (void*) ( p - ( p & ( align - 1 ) ) );
     }
 
     TLSF_Allocator::TLSF_Allocator( void * memory, size_t size ) 
     {
-        assert( size > 0 );
+        yojimbo_assert( size > 0 );
 
-        m_error = ALLOCATOR_ERROR_NONE;
+        SetErrorLevel( ALLOCATOR_ERROR_NONE );
 
         const int AlignBytes = 8;
 
         uint8_t * aligned_memory_start = (uint8_t*) AlignPointerUp( memory, AlignBytes );
         uint8_t * aligned_memory_finish = (uint8_t*) AlignPointerDown( ( (uint8_t*) memory ) + size, AlignBytes );
 
-        assert( aligned_memory_start < aligned_memory_finish );
+        yojimbo_assert( aligned_memory_start < aligned_memory_finish );
         
         size_t aligned_memory_size = aligned_memory_finish - aligned_memory_start;
 
@@ -164,7 +155,7 @@ namespace yojimbo
 
         if ( !p )
         {
-            SetError( ALLOCATOR_ERROR_FAILED_TO_ALLOCATE );
+            SetErrorLevel( ALLOCATOR_ERROR_OUT_OF_MEMORY );
             return NULL;
         }
 

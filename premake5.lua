@@ -1,5 +1,5 @@
 
-libyojimbo_version = "0.4.0"
+libyojimbo_version = "0.5.0"
 
 if os.is "windows" then
     debug_libs = { "sodium-debug", "mbedtls-debug", "mbedx509-debug", "mbedcrypto-debug" }
@@ -13,12 +13,12 @@ solution "Yojimbo"
     kind "ConsoleApp"
     language "C++"
     platforms { "x64" }
-    configurations { "Debug", "Release", "Secure" }
+    configurations { "Debug", "Release" }
     if os.is "windows" then
-        includedirs { ".", "./windows" }
+        includedirs { ".", "./windows", "netcode.io/c", "reliable.io" }
         libdirs { "./windows" }
     else
-        includedirs { ".", "/usr/local/include" }       -- for clang scan-build only. for some reason it needs this to work =p
+        includedirs { ".", "/usr/local/include", "netcode.io/c", "reliable.io" }
         targetdir "bin/"  
     end
     rtti "Off"
@@ -30,22 +30,14 @@ solution "Yojimbo"
         optimize "Speed"
         defines { "NDEBUG" }
         links { release_libs }
-    configuration "Secure"
-        optimize "Speed"
-        defines { "YOJIMBO_SECURE_MODE=1", "NDEBUG" }
-        links { release_libs }
         
 project "test"
     files { "tests/test.cpp" }
     links { "yojimbo" }
 
-project "info"
-    files { "tests/info.cpp" }
-    links { "yojimbo" }
-
 project "yojimbo"
     kind "StaticLib"
-    files { "yojimbo.h", "yojimbo.cpp", "yojimbo_*.h", "yojimbo_*.cpp", "tlsf/tlsf.h", "tlsf/tlsf.c" }
+    files { "yojimbo.h", "yojimbo.cpp", "yojimbo_*.h", "yojimbo_*.cpp", "tlsf/tlsf.h", "tlsf/tlsf.c", "netcode.io/c/netcode.c", "netcode.io/c/netcode.h", "reliable.io/reliable.c", "reliable.io/reliable.h" }
 
 project "client"
     files { "tests/client.cpp", "tests/shared.h" }
@@ -71,10 +63,6 @@ project "soak"
     files { "tests/soak.cpp", "tests/shared.h" }
     links { "yojimbo" }
 
-project "profile"
-    files { "tests/profile.cpp", "tests/shared.h" }
-    links { "yojimbo" }
-
 if not os.is "windows" then
 
     -- MacOSX and Linux.
@@ -87,18 +75,6 @@ if not os.is "windows" then
             os.execute "test ! -e Makefile && premake5 gmake"
             if os.execute "make -j32 test" == 0 then
                 os.execute "./bin/test"
-            end
-        end
-    }
-
-    newaction
-    {
-        trigger     = "info",
-        description = "Build and run network info utility",
-        execute = function ()
-            os.execute "test ! -e Makefile && premake5 gmake"
-            if os.execute "make -j32 info" == 0 then
-                os.execute "./bin/info"
             end
         end
     }
@@ -172,7 +148,7 @@ if not os.is "windows" then
 		description = "Build and run a yojimbo server inside a docker container",
 		execute = function ()
             os.execute "docker run --rm --privileged alpine hwclock -s" -- workaround for clock getting out of sync on macos. see https://docs.docker.com/docker-for-mac/troubleshoot/#issues
-            os.execute "rm -rf docker/libyojimbo && mkdir -p docker/libyojimbo && mkdir -p docker/libyojimbo/tests && cp *.h docker/libyojimbo && cp *.cpp docker/libyojimbo && cp premake5.lua docker/libyojimbo && cp tests/* docker/libyojimbo/tests && cp -R rapidjson docker/libyojimbo && cp -R tlsf docker/libyojimbo && cd docker && docker build -t \"networkprotocol:yojimbo-server\" . && rm -rf libyojimbo && docker run -ti -p 40000:40000/udp networkprotocol:yojimbo-server"
+            os.execute "rm -rf docker/libyojimbo && mkdir -p docker/libyojimbo && mkdir -p docker/libyojimbo/tests && cp *.h docker/libyojimbo && cp *.cpp docker/libyojimbo && cp premake5.lua docker/libyojimbo && cp tests/* docker/libyojimbo/tests && cp -R reliable.io docker/libyojimbo && cp -R netcode.io docker/libyojimbo && cp -R tlsf docker/libyojimbo && cd docker && docker build -t \"networkprotocol:yojimbo-server\" . && rm -rf libyojimbo && docker run -ti -p 40000:40000/udp networkprotocol:yojimbo-server"
 		end
 	}
 
@@ -226,22 +202,10 @@ if not os.is "windows" then
 
     newaction
     {
-        trigger     = "profile",
-        description = "Build and run profile testbed",
-        execute = function ()
-            os.execute "test ! -e Makefile && premake5 gmake"
-            if os.execute "make -j32 profile" == 0 then
-                os.execute "./bin/profile"
-            end
-        end
-    }
-
-    newaction
-    {
         trigger     = "cppcheck",
         description = "Run cppcheck over the source code and write to cppcheck.txt",
         execute = function ()
-            os.execute "cppcheck *.h *.cpp --force --std=c++03 --language=c++ --quiet -U min -U max 2>&1 --config-exclude=rapidjson --config-exclude=tlsf --suppress=incorrectStringBooleanError --suppress=cstyleCast --suppress=unusedFunction --suppress=unusedStructMember --suppress=variableScope --suppress=memsetClassFloat --enable=warning --enable=performance --enable=style --platform=native -j 32 | tee -a cppcheck.txt"
+            os.execute "cppcheck *.h *.cpp --force --std=c++03 --language=c++ --quiet -U min -U max 2>&1 --config-exclude=tlsf --suppress=incorrectStringBooleanError --suppress=cstyleCast --suppress=unusedFunction --suppress=unusedStructMember --suppress=variableScope --suppress=memsetClassFloat --enable=warning --enable=performance --enable=style --platform=native -j 32 | tee -a cppcheck.txt"
         end
     }
 
@@ -268,7 +232,7 @@ if not os.is "windows" then
         trigger     = "loc",
         description = "Count lines of code",
         execute = function ()
-            os.execute "wc -l *.h *.cpp"
+            os.execute "wc -l *.h *.cpp tests/*.h tests/*.cpp netcode.io/c/*.c netcode.io/c/*.h reliable.io/*.c reliable.io/*.h"
         end
     }
 
@@ -279,7 +243,8 @@ if not os.is "windows" then
         execute = function ()
             _ACTION = "clean"
             premake.action.call( "clean" )
-            files_to_zip = "README.md BUILDING.md CHANGES.md ROADMAP.md *.cpp *.h premake5.lua docker tests rapidjson tlsf windows"
+            files_to_zip = "README.md BUILDING.md CHANGES.md ROADMAP.md *.cpp *.h premake5.lua docker tests tlsf windows"
+            -- todo: need to update this so it works with netcode.io and reliable.io sub-projects
             os.execute( "rm -rf *.zip *.tar.gz" );
             os.execute( "rm -rf docker/libyojimbo" );
             os.execute( "zip -9r libyojimbo-" .. libyojimbo_version .. ".zip " .. files_to_zip )
