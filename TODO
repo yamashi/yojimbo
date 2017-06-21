@@ -53,10 +53,6 @@ DONE
     Verified new matcher works with secure client and server.
 >>>>>>> master
 
-TODO
-
-    ------------
-
     Extend netcode.io so the user can set a custom allocator to use for client.
 
     Extend netcode.io so the user can set a custom allocator to use for server.
@@ -65,19 +61,15 @@ TODO
 
     Integrate custom allocators for netcode.io and reliable.io with client and server allocators in yojimbo.
 
-    ------------
-
-    Add define to replace all allocators with default (so everything goes through malloc).
-
-    Setup a valgrind to check for memory leaks and trashes inside docker with the soak test.
+TODO
 
     ------------
 
-    Implement packet loss, latency, jitter estimates from reliable.io
+    Implement packet loss, latency, jitter estimates in reliable.io
 
     Integrate QoS settings above with yojimbo client/server and connection.
 
-    Implement congestion adoidance in reliable.io (if reasonably possible given that user is in control of packet sizes...)
+    Implement congestion avoidance in reliable.io (if reasonably possible given that user is in control of packet sizes...)
 
     ------------
 
@@ -92,10 +84,6 @@ TODO
     ------------
 
     Rethink and fix up configuration of channels. It still feels too complex.
-
-    ------------
-
-    Add some way to get at acks from the adapter.
 
     ------------
 

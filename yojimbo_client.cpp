@@ -131,6 +131,9 @@ namespace yojimbo
         config.context = (void*) this;
         config.transmit_packet_function = BaseClient::StaticTransmitPacketFunction;
         config.process_packet_function = BaseClient::StaticProcessPacketFunction;
+        config.allocator_context = m_clientAllocator;
+        config.allocate_function = BaseClient::StaticAllocateFunction;
+        config.free_function = BaseClient::StaticFreeFunction;
         m_endpoint = reliable_endpoint_create( &config );
         reliable_endpoint_reset( m_endpoint );
     }
@@ -162,6 +165,21 @@ namespace yojimbo
         (void) index;
         BaseClient * client = (BaseClient*) context;
         return client->ProcessPacketFunction( packetSequence, packetData, packetBytes );
+    }
+
+    void * BaseClient::StaticAllocateFunction( void * context, uint64_t bytes )
+    {
+        yojimbo_assert( context );
+        Allocator * allocator = (Allocator*) context;
+        return YOJIMBO_ALLOCATE( *allocator, bytes );
+    }
+    
+    void BaseClient::StaticFreeFunction( void * context, void * pointer )
+    {
+        yojimbo_assert( context );
+        yojimbo_assert( pointer );
+        Allocator * allocator = (Allocator*) context;
+        YOJIMBO_FREE( *allocator, pointer );
     }
 
     Message * BaseClient::CreateMessage( int type )
@@ -261,7 +279,7 @@ namespace yojimbo
     bool Client::GenerateInsecureConnectToken( uint8_t * connectToken, const uint8_t privateKey[], uint64_t clientId, const Address serverAddresses[], int numServerAddresses, int timeout )
     {
         char serverAddressStrings[NETCODE_MAX_SERVERS_PER_CONNECT][MaxAddressLength];
-        char * serverAddressStringPointers[NETCODE_MAX_SERVERS_PER_CONNECT];
+        const char * serverAddressStringPointers[NETCODE_MAX_SERVERS_PER_CONNECT];
         for ( int i = 0; i < numServerAddresses; ++i ) 
         {
             serverAddresses[i].ToString( serverAddressStrings[i], MaxAddressLength );
@@ -367,7 +385,7 @@ namespace yojimbo
         DestroyClient();
         char addressString[MaxAddressLength];
         address.ToString( addressString, MaxAddressLength );
-        m_client = netcode_client_create( addressString, GetTime() );
+        m_client = netcode_client_create_with_allocator( addressString, GetTime(), &GetClientAllocator(), StaticAllocateFunction, StaticFreeFunction );
         if ( m_client )
         {
             netcode_client_state_change_callback( m_client, this, StaticStateChangeCallbackFunction );
