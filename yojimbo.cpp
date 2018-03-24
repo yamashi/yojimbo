@@ -3379,6 +3379,8 @@ namespace yojimbo
         address.ToString( addressString, MaxAddressLength );
 
 		netcode_client_config_t config;
+		std::memset(&config, 0, sizeof(config));
+
 		config.allocator_context = &GetClientAllocator();
 		config.allocate_function = StaticAllocateFunction;
 		config.free_function = &StaticFreeFunction;
@@ -3793,6 +3795,7 @@ namespace yojimbo
         m_address.ToString( addressString, MaxAddressLength );
 
 		netcode_server_config_t config;
+		std::memset(&config, 0, sizeof(config));
 		config.allocate_function = StaticAllocateFunction;
 		config.free_function = StaticFreeFunction;
 		config.allocator_context = &GetGlobalAllocator();
