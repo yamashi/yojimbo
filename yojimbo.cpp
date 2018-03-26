@@ -29,6 +29,7 @@
 #endif // #ifdef _MSC_VER
 
 #include <sodium.h>
+#include <csting>
 
 #if YOJIMBO_DEBUG_MEMORY_LEAKS
 #include <map>
@@ -3804,7 +3805,7 @@ namespace yojimbo
 		config.send_loopback_packet_callback = StaticSendLoopbackPacketCallbackFunction;
 		config.callback_context = this;
 
-		std::copy(std::begin(m_privateKey), std::end(m_privateKey), config.private_key);
+		std::memcpy(config.private_key, m_privateKey, sizeof(m_privateKey));
 
 		m_server = netcode_server_create(addressString, &config, GetTime());
         if ( !m_server )
