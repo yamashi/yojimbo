@@ -29,7 +29,7 @@
 #endif // #ifdef _MSC_VER
 
 #include <sodium.h>
-#include <csting>
+#include <cstring>
 
 #if YOJIMBO_DEBUG_MEMORY_LEAKS
 #include <map>
