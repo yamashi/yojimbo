@@ -870,7 +870,7 @@ namespace yojimbo
     inline int bits_required( uint32_t min, uint32_t max )
     {
 #ifdef __GNUC__
-        return 32 - __builtin_clz( max - min );
+		return (min == max) ? 0 : 32 - __builtin_clz(max - min);
 #else // #ifdef __GNUC__
         return ( min == max ) ? 0 : log2( max - min ) + 1;
 #endif // #ifdef __GNUC__
@@ -2974,7 +2974,7 @@ namespace yojimbo
         if ( Stream::IsWriting )
         {
             length = (int) strlen( string );
-            yojimbo_assert( length < buffer_size - 1 );
+            yojimbo_assert( length < buffer_size );
         }
         serialize_int( stream, length, 0, buffer_size - 1 );
         serialize_bytes( stream, (uint8_t*)string, length );
@@ -4464,12 +4464,11 @@ namespace yojimbo
 
         struct SendBlockData
         {
-            SendBlockData( Allocator & allocator, int maxBlockSize, int maxFragmentsPerBlock )
+            SendBlockData( Allocator & allocator, int maxFragmentsPerBlock )
             {
                 m_allocator = &allocator;
                 ackedFragment = YOJIMBO_NEW( allocator, BitArray, allocator, maxFragmentsPerBlock );
                 fragmentSendTime = (double*) YOJIMBO_ALLOCATE( allocator, sizeof( double) * maxFragmentsPerBlock );
-                blockData = (uint8_t*) YOJIMBO_ALLOCATE( allocator, maxBlockSize );
                 yojimbo_assert( ackedFragment );
                 yojimbo_assert( fragmentSendTime );
                 yojimbo_assert( blockData );
@@ -4479,7 +4478,6 @@ namespace yojimbo
             ~SendBlockData()
             {
                 YOJIMBO_DELETE( *m_allocator, BitArray, ackedFragment );
-                YOJIMBO_FREE( *m_allocator, blockData );
                 YOJIMBO_FREE( *m_allocator, fragmentSendTime );
             }
 
@@ -4499,7 +4497,6 @@ namespace yojimbo
             uint16_t blockMessageId;                                                    ///< The message id the block is attached to.
             BitArray * ackedFragment;                                                   ///< Has fragment n been received?
             double * fragmentSendTime;                                                  ///< Last time fragment was sent.
-            uint8_t * blockData;                                                        ///< The block data.
 
         private:
 

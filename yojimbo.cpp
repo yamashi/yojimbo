@@ -1634,7 +1634,7 @@ namespace yojimbo
 
         if ( !config.disableBlocks )
         {
-            m_sendBlock = YOJIMBO_NEW( *m_allocator, SendBlockData, *m_allocator, m_config.maxBlockSize, m_config.GetMaxFragmentsPerBlock() ); 
+            m_sendBlock = YOJIMBO_NEW( *m_allocator, SendBlockData, *m_allocator, m_config.GetMaxFragmentsPerBlock() ); 
             m_receiveBlock = YOJIMBO_NEW( *m_allocator, ReceiveBlockData, *m_allocator, m_config.maxBlockSize, m_config.GetMaxFragmentsPerBlock() );
         }
         else
@@ -3380,13 +3380,12 @@ namespace yojimbo
         address.ToString( addressString, MaxAddressLength );
 
 		netcode_client_config_t config;
-		std::memset(&config, 0, sizeof(config));
-
+		netcode_default_client_config(&config);
 		config.allocator_context = &GetClientAllocator();
 		config.allocate_function = StaticAllocateFunction;
-		config.free_function = &StaticFreeFunction;
-		config.state_change_callback = &StaticStateChangeCallbackFunction;
-		config.send_loopback_packet_callback = &StaticSendLoopbackPacketCallbackFunction;
+		config.free_function = StaticFreeFunction;
+		config.state_change_callback = StaticStateChangeCallbackFunction;
+		config.send_loopback_packet_callback = StaticSendLoopbackPacketCallbackFunction;
 		config.callback_context = this;
 
 		m_client = netcode_client_create( addressString, &config, GetTime());
@@ -3796,7 +3795,7 @@ namespace yojimbo
         m_address.ToString( addressString, MaxAddressLength );
 
 		netcode_server_config_t config;
-		std::memset(&config, 0, sizeof(config));
+		netcode_default_server_config(&config);
 		config.allocate_function = StaticAllocateFunction;
 		config.free_function = StaticFreeFunction;
 		config.allocator_context = &GetGlobalAllocator();
